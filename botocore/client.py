@@ -963,7 +963,6 @@ class BaseClient:
             context=request_context,
             headers=additional_headers,
         )
-        resolve_checksum_context(request_dict, operation_model, api_params)
 
         service_id = self._service_model.service_id.hyphenize()
         handler, event_response = self.meta.events.emit_until_response(
@@ -1039,6 +1038,7 @@ class BaseClient:
             user_agent=self._client_config.user_agent,
             context=context,
         )
+        resolve_checksum_context(request_dict, operation_model, api_params)
         return request_dict
 
     def _emit_api_params(self, api_params, operation_model, context):

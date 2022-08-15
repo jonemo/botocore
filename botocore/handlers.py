@@ -1020,6 +1020,49 @@ def add_retry_headers(request, **kwargs):
     headers['amz-sdk-request'] = '; '.join(sdk_request_headers)
 
 
+def fix_s3_path(model, params, **kwargs):
+    """Fixes correctly assembled but invalid S3 URLs
+
+    A pair of correctly resolved S3 endpoint and path duplicates the bucket
+    name: For virtual addressing mode, the endpoint is `https://bucketname...`.
+    For path addressing mode, the endpoint is `https://.../bucketname`. In both
+    cases, the path is `/bucketname/objectkey`.
+
+    This function modifies the `url` and `url_path` fields of a request dict to
+    remove the duplication and make the URLs valid. The request dict is
+    modified in place.
+    """
+    if model.service_model.service_name != 's3':
+        return
+    if not (
+        model.http['requestUri'] == '/{Bucket}'
+        or model.http['requestUri'].startswith('/{Bucket}/')
+        or model.http['requestUri'].startswith('/{Bucket}?')
+    ):
+        return
+    url_parts = urlsplit(params['url'])
+    # Find the first slash in the path after the leading slash.
+    slash_position = 1 + url_parts.path[1:].find('/')
+    if slash_position == 0:
+        # If no slash was found, the path contained only the bucket, only once
+        url_path_without_bucket = '/'
+    else:
+        url_path_without_bucket = url_parts.path[slash_position:]
+
+    params['url'] = urlunsplit(
+        (
+            url_parts.scheme,
+            url_parts.netloc,
+            url_path_without_bucket,
+            url_parts.query,
+            url_parts.fragment,
+        )
+    )
+    logger.debug(
+        'Removed duplicate bucket name from S3 URL: %s', params['url']
+    )
+
+
 # This is a list of (event_name, handler).
 # When a Session is created, everything in this list will be
 # automatically registered with that Session.
@@ -1074,6 +1117,7 @@ BUILTIN_HANDLERS = [
     ('docs.*.s3.UploadPartCopy.complete-section', document_copy_source_form),
     ('before-call', add_recursion_detection_header),
     ('before-call.s3', add_expect_header),
+    ('before-call.s3', fix_s3_path),
     ('before-call.glacier', add_glacier_version),
     ('before-call.apigateway', add_accept_header),
     ('before-call.s3.PutObject', conditionally_calculate_md5),

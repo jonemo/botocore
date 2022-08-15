@@ -145,6 +145,8 @@ class ClientCreator:
         self._register_retries(service_client)
 
         if client_args['endpoint_resolver_v2'] is None:
+            # When using the legacy endpoint resolver, several event handlers
+            # modify endpoint and request context.
             self._register_eventbridge_events(
                 service_client, endpoint_bridge, endpoint_url
             )
@@ -162,6 +164,8 @@ class ClientCreator:
                 client_config,
                 scoped_config,
             )
+        else:
+            self._register_s3_events_v2(service_client)
 
         self._register_endpoint_discovery(
             service_client, endpoint_url, client_config

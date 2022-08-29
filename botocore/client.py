@@ -64,6 +64,10 @@ from botocore import UNSIGNED  # noqa
 logger = logging.getLogger(__name__)
 history_recorder = get_global_history_recorder()
 
+# This list will change and eventually be removed during minor or patch version
+# changes as part of the rollout of rule-based endpoints resolution.
+_ENDPOINT_RESOLUTION_V2_SERVICES = ['s3', 's3control']
+
 
 class ClientCreator:
     """Creates client objects for a service."""
@@ -112,10 +116,16 @@ class ClientCreator:
         )
         service_name = first_non_none_response(responses, default=service_name)
         service_model = self._load_service_model(service_name, api_version)
-        endpoints_ruleset_data = self._load_service_endpoints_ruleset(
-            service_name, api_version
-        )
-        partition_data = self._loader.load_data('partitions')
+
+        if service_name in _ENDPOINT_RESOLUTION_V2_SERVICES:
+            endpoints_ruleset_data = self._load_service_endpoints_ruleset(
+                service_name, api_version
+            )
+            partition_data = self._loader.load_data('partitions')
+        else:
+            endpoints_ruleset_data = None
+            partition_data = None
+
         cls = self._create_client_class(service_name, service_model)
         region_name, client_config = self._normalize_fips_region(
             region_name, client_config
@@ -150,22 +160,6 @@ class ClientCreator:
             self._register_eventbridge_events(
                 service_client, endpoint_bridge, endpoint_url
             )
-            self._register_s3_events(
-                service_client,
-                endpoint_bridge,
-                endpoint_url,
-                client_config,
-                scoped_config,
-            )
-            self._register_s3_control_events(
-                service_client,
-                endpoint_bridge,
-                endpoint_url,
-                client_config,
-                scoped_config,
-            )
-        else:
-            self._register_s3_events_v2(service_client)
 
         self._register_endpoint_discovery(
             service_client, endpoint_url, client_config

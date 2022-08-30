@@ -75,6 +75,12 @@ class TestCreateClientArgs(unittest.TestCase):
             'scoped_config': {},
             'client_config': None,
             'endpoint_bridge': self.bridge,
+            'endpoints_ruleset_data': {
+                'version': '1.0',
+                'parameters': {},
+                'rules': [],
+            },
+            'partition_data': {},
         }
         call_kwargs.update(**override_kwargs)
         return self.args_create.get_client_args(**call_kwargs)

@@ -22,6 +22,7 @@ import re
 from enum import Enum
 
 from botocore import xform_name
+from botocore.auth import AUTH_TYPE_MAPS, HAS_CRT
 from botocore.endpoint_provider import EndpointProvider
 from botocore.exceptions import (
     EndpointVariantError,
@@ -609,3 +610,69 @@ class EndpointResolverv2:
             params=call_args,
         )
         return customized_builtins
+
+    def auth_schemes_to_signing_context(self, auth_schemes):
+        """Convert an Endpoint's authSchemes property to a signing_context dict
+
+        :type auth_schemes: list
+        :param auth_schemes: A list of dictionaries taken from the
+            ``authSchemes`` property of an Endpoint object returned by
+            ``EndpointProvider``.
+
+        :rtype: str, dict
+        :return: Tuple of auth type string (to be used in
+            ``request_context['auth_type']``) and signing context dict (for use
+            in ``request_context['signing']``).
+        """
+        if not isinstance(auth_schemes, list) or len(auth_schemes) == 0:
+            raise TypeError("auth_schemes must be a non-empty list.")
+
+        # normalize auth type names by removing any "sig" prefix
+        def strip_sig(auth_name):
+            return auth_name[3:] if auth_name.startswith('sig') else auth_name
+
+        auth_schemes = [
+            {**el, 'name': strip_sig(el['name'])} for el in auth_schemes
+        ]
+
+        for scheme in auth_schemes:
+            if scheme['name'] not in AUTH_TYPE_MAPS:
+                continue
+
+            signing_context = {}
+            if 'signingRegion' in scheme:
+                signing_context['region'] = scheme['signingRegion']
+            elif 'signingRegionSet' in scheme:
+                # todo: can we handle lists of regions?
+                if len(scheme['signingRegionSet'][0]) > 0:
+                    signing_context['region'] = scheme['signingRegionSet'][0]
+            if 'signingName' in scheme:
+                signing_context.update(signing_name=scheme['signingName'])
+            if 'disableDoubleEncoding' in scheme:
+                signing_context['disableDoubleEncoding'] = ensure_boolean(
+                    scheme['disableDoubleEncoding']
+                )
+
+            return scheme['name'], signing_context
+        else:
+            # If an authSchemes list is present in the Endpoint object but none
+            # of the entries are supported, raise an exception. (However, if
+            # authSchemes is not present, use the service's default auth type.)
+            fixable_with_awscrt = False
+            auth_type_options = [scheme['name'] for scheme in auth_schemes]
+            if not HAS_CRT:
+                from botocore.crt.auth import CRT_AUTH_TYPE_MAPS
+
+                for auth_type in auth_type_options:
+                    if auth_type in CRT_AUTH_TYPE_MAPS:
+                        fixable_with_awscrt = True
+
+            if fixable_with_awscrt:
+                raise MissingDependencyException(
+                    msg='This operation requires an additional dependency. '
+                    'Use pip install botocore[crt] before proceeding.'
+                )
+            else:
+                raise UnknownSignatureVersionError(
+                    signature_version=', '.join(auth_type_options)
+                )

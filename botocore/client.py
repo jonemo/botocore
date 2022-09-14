@@ -934,27 +934,30 @@ class BaseClient:
                 header_key: header_values[0]
                 for header_key, header_values in endpoint_info.headers.items()
             }
-            # Always use the highest-priority entry from authSchemes
-            ep_auth = endpoint_info.properties['authSchemes'][0]
-            auth_type = ep_auth['name']
-            if auth_type.startswith("sig"):
-                auth_type = auth_type[3:]
-            request_context['auth_type'] = auth_type
-            signing_context = request_context.get('signing', {})
-            if 'signingRegion' in ep_auth:
-                signing_context.update(region=ep_auth['signingRegion'])
-            elif 'signingRegionSet' in ep_auth:
-                # todo: can we handle lists of regions?
-                if len(ep_auth['signingRegionSet'][0]) > 0:
-                    signing_context.update(
-                        region=ep_auth['signingRegionSet'][0]
-                    )
-            if 'signingName' in ep_auth:
-                signing_context.update(signing_name=ep_auth['signingName'])
-            if signing_context:
-                request_context['signing'] = signing_context
-            # todo: handle "disableDoubleEncoding"
-            # https://code.amazon.com/packages/AwsDrSeps/commits/270160ff6b09fcb35bf70c775610792bafb35ab9#
+            # If authSchemes is present, overwrite default auth type and
+            # signing context derived from service model.
+            auth_schemes = endpoint_info.properties.get('authSchemes')
+            if auth_schemes is not None:
+                logger.debug(
+                    'Endpoing provider returnd list of auth schemes: %s',
+                    ', '.join([s.get('name') for s in auth_schemes]),
+                )
+                (
+                    auth_type,
+                    signing_context,
+                ) = self._endpoint_resolver_v2.auth_schemes_to_signing_context(
+                    auth_schemes
+                )
+                logger.debug(
+                    'Selected auth type "%s" with signing context params: %s',
+                    auth_type,
+                    signing_context,
+                )
+                request_context['auth_type'] = auth_type
+                if 'signing' in request_context:
+                    request_context['signing'].update(signing_context)
+                else:
+                    request_context['signing'] = signing_context
 
         request_dict = self._convert_to_request_dict(
             api_params=api_params,

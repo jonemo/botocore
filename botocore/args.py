@@ -176,6 +176,7 @@ class ClientArgsCreator:
                 service_model=service_model,
                 builtins=resolver_builtins,
                 client_context=client_context,
+                event_emitter=event_emitter,
             )
 
         return {

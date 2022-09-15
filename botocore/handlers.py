@@ -51,6 +51,7 @@ from botocore.exceptions import (
     ParamValidationError,
     UnsupportedTLSVersionWarning,
 )
+from botocore.regions import EndpointResolverBuiltins
 from botocore.signers import (
     add_generate_db_auth_token,
     add_generate_presigned_post,
@@ -58,6 +59,8 @@ from botocore.signers import (
 )
 from botocore.utils import (
     SAFE_CHARS,
+    ArnParser,
+    InvalidArnException,
     conditionally_calculate_md5,
     percent_encode,
     switch_host_with_param,
@@ -1063,6 +1066,47 @@ def fix_s3_path(model, params, **kwargs):
     )
 
 
+def customize_endpoint_resolver_builtins(
+    builtins, operation_name, params, **kwargs
+):
+    """Modify builtin parameter values for endpoint resolver
+
+    Modifies the builtins dict in place. Changes are in effect for one call.
+    The corresponding event is emitted only if at least one builtin parameter
+    value is required for endpoint resolution for the operation.
+    """
+    # Accelerate is not compatible with path-style addresses
+    if builtins[EndpointResolverBuiltins.AWS_S3_ACCELERATE]:
+        builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = False
+
+    # In some situations the host will return AuthorizationHeaderMalformed
+    # when the signing region of a sigv4 request is not the bucket's
+    # region (which is likely unknown by the sender of this request).
+    # Avoid this by always using path-style addressing.
+    if operation_name == "GetBucketLocation":
+        builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
+
+    bucket_name = params.get('Bucket')
+    if bucket_name:
+        # botocore supports legacy buckets that break today's bucket naming
+        # rules. For backwards compatibility, legacy bucket names always
+        # use path style addressing.
+        if len(bucket_name) < 3 or bucket_name != bucket_name.lower():
+            builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
+
+        # All situations where the bucket name is an ARN are not compatible
+        # with path style addressing.
+        arn_parser = ArnParser()
+        if ':' in bucket_name:
+            try:
+                arn_parser.parse_arn(bucket_name)
+                builtins[
+                    EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE
+                ] = False
+            except InvalidArnException:
+                pass
+
+
 # This is a list of (event_name, handler).
 # When a Session is created, everything in this list will be
 # automatically registered with that Session.
@@ -1115,6 +1159,7 @@ BUILTIN_HANDLERS = [
     ),
     ('docs.*.s3.CopyObject.complete-section', document_copy_source_form),
     ('docs.*.s3.UploadPartCopy.complete-section', document_copy_source_form),
+    ('before-endpoint-resolution.s3', customize_endpoint_resolver_builtins),
     ('before-call', add_recursion_detection_header),
     ('before-call.s3', add_expect_header),
     ('before-call.s3', fix_s3_path),

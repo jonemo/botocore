@@ -16,6 +16,7 @@ This module implements endpoint resolution, including resolving endpoints for a
 given service and region and resolving the available endpoints for a service
 in a specific AWS partition.
 """
+import copy
 import logging
 import re
 from enum import Enum
@@ -25,11 +26,13 @@ from botocore.endpoint_provider import EndpointProvider
 from botocore.exceptions import (
     EndpointVariantError,
     FailedEndpointProviderParameterResolution,
+    MissingDependencyException,
     NoRegionError,
     UnknownEndpointResolutionBuiltInName,
     UnknownRegionError,
+    UnknownSignatureVersionError,
 )
-from botocore.utils import ArnParser, InvalidArnException, instance_cache
+from botocore.utils import ensure_boolean, instance_cache
 
 LOG = logging.getLogger(__name__)
 DEFAULT_URI_TEMPLATE = '{service}.{region}.{dnsSuffix}'  # noqa
@@ -450,6 +453,7 @@ class EndpointResolverv2:
         service_model,
         builtins,
         client_context,
+        event_emitter,
     ):
         self._provider = EndpointProvider(
             ruleset_data=endpoint_ruleset_data,
@@ -459,6 +463,7 @@ class EndpointResolverv2:
         self._service_model = service_model
         self._builtins = builtins
         self._client_context = client_context
+        self._event_emitter = event_emitter
         self._instance_cache = {}
 
     def construct_endpoint(
@@ -497,6 +502,11 @@ class EndpointResolverv2:
         FailedEndpointProviderParameterResolution is raised.
         """
         provider_params = {}
+        # Builtin values can be customized for each operation by hooks
+        # subscribing to the ``before-endpoint-resolution.*`` event. This event
+        # is only fired once per operation and only if at least one builtin
+        # parameter is needed by the ruleset.
+        customized_builtins = None
         for param_name, param_def in self._param_definitions.items():
             param_val = self._resolve_param_from_context(
                 param_name=param_name,
@@ -504,21 +514,14 @@ class EndpointResolverv2:
                 call_args=call_args,
             )
             if param_val is None and param_def.built_in is not None:
-                # Special rules apply for the AWS::S3::ForcePathStyle builtin
-                # to maintain backwards-compatible behavior that is not
-                # reflected in the S3 enpoints ruleset.
-                if (
-                    param_def.built_in
-                    == EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE
-                ):
-                    param_val = self._resolve_param_as_path_style_builtin(
-                        op_name=operation_name,
-                        call_args=call_args,
+                if customized_builtins is None:
+                    customized_builtins = self._get_customized_builtins(
+                        operation_name, call_args
                     )
-                else:
-                    param_val = self._resolve_param_as_builtin(
-                        builtin_name=param_def.built_in,
-                    )
+                param_val = self._resolve_param_as_builtin(
+                    builtin_name=param_def.built_in,
+                    builtins=customized_builtins,
+                )
 
             if param_val is not None:
                 provider_params[param_name] = param_val
@@ -564,49 +567,10 @@ class EndpointResolverv2:
             client_ctx_varname = client_ctx_params[param_name]
             return self._client_context.get(client_ctx_varname)
 
-    def _resolve_param_as_builtin(self, builtin_name):
+    def _resolve_param_as_builtin(self, builtin_name, builtins):
         if builtin_name not in EndpointResolverBuiltins.__members__.values():
             raise UnknownEndpointResolutionBuiltInName(name=builtin_name)
-        return self._builtins[builtin_name]
-
-    def _resolve_param_as_path_style_builtin(self, op_name, call_args):
-        # Accelerate is not compatible with path-style addresses
-        if self._builtins[EndpointResolverBuiltins.AWS_S3_ACCELERATE]:
-            return False
-
-        # In some situations the host will return AuthorizationHeaderMalformed
-        # when the signing region of a sigv4 request is not the bucket's
-        # region (which is likely unknown by the sender of this request).
-        # Avoid this by always using path style addressing.
-        if op_name == "GetBucketLocation":
-            return True
-
-        # If no special case applies, default to value set during client
-        # creation
-        default = self._builtins[
-            EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE
-        ]
-        bucket_name = call_args.get('Bucket')
-        if bucket_name is None:
-            return default
-
-        # botocore supports legacy buckets that break today's bucket naming
-        # rules. For backwards compatibility, legacy bucket names always
-        # use path style addressing.
-        if len(bucket_name) < 3 or bucket_name != bucket_name.lower():
-            return True
-
-        # All situations where the bucket name is an ARN are not compatible
-        # with path style addressing.
-        arn_parser = ArnParser()
-        if ':' in bucket_name:
-            try:
-                arn_parser.parse_arn(bucket_name)
-                return False
-            except InvalidArnException:
-                pass
-
-        return default
+        return builtins[builtin_name]
 
     @instance_cache
     def _get_static_context_params(self, operation_name):
@@ -633,3 +597,15 @@ class EndpointResolverv2:
             param.name: xform_name(param.name)
             for param in self._service_model.client_context_parameters
         }
+
+    def _get_customized_builtins(self, operation_name, call_args):
+        service_id = self._service_model.service_id.hyphenize()
+        customized_builtins = copy.copy(self._builtins)
+        # Handlers are expected to modify the builtins dict in place.
+        self._event_emitter.emit(
+            'before-endpoint-resolution.%s' % service_id,
+            builtins=customized_builtins,
+            operation_name=operation_name,
+            params=call_args,
+        )
+        return customized_builtins

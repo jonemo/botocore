@@ -117,7 +117,9 @@ class ClientCreator:
         service_name = first_non_none_response(responses, default=service_name)
         service_model = self._load_service_model(service_name, api_version)
 
-        if service_name in _ENDPOINT_RESOLUTION_V2_SERVICES:
+        if service_name in _ENDPOINT_RESOLUTION_V2_SERVICES or ensure_boolean(
+            os.environ.get('BOTO_FORCE_ENDPOINT_RESOLUTION_V2', False)
+        ):
             endpoints_ruleset_data = self._load_service_endpoints_ruleset(
                 service_name, api_version
             )

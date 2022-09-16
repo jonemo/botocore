@@ -1089,12 +1089,6 @@ def customize_endpoint_resolver_builtins(
 
     bucket_name = params.get('Bucket')
     if bucket_name:
-        # botocore supports legacy buckets that break today's bucket naming
-        # rules. For backwards compatibility, legacy bucket names always
-        # use path style addressing.
-        if len(bucket_name) < 3 or bucket_name != bucket_name.lower():
-            builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
-
         # All situations where the bucket name is an ARN are not compatible
         # with path style addressing.
         arn_parser = ArnParser()

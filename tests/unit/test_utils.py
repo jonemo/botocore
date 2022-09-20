@@ -1487,6 +1487,7 @@ class TestS3RegionRedirector(unittest.TestCase):
             builtins={},
             client_context=None,
             event_emitter=None,
+            use_ssl=True,
         )
         self.client._endpoint_resolver_v2.construct_endpoint = mock.Mock(
             return_value=RuleSetEndpoint(

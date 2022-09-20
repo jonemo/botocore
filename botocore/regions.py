@@ -455,6 +455,7 @@ class EndpointResolverv2:
         builtins,
         client_context,
         event_emitter,
+        use_ssl=True,
     ):
         self._provider = EndpointProvider(
             ruleset_data=endpoint_ruleset_data,
@@ -465,6 +466,7 @@ class EndpointResolverv2:
         self._builtins = builtins
         self._client_context = client_context
         self._event_emitter = event_emitter
+        self._use_ssl = use_ssl
         self._instance_cache = {}
 
     def construct_endpoint(
@@ -491,6 +493,13 @@ class EndpointResolverv2:
         )
         provider_result = self._provider.resolve_endpoint(**provider_params)
         LOG.debug('Endpoint provider result: %s' % provider_result.url)
+
+        # The endpoint provider does not support non-secure transport.
+        if not self._use_ssl and provider_result.url.startswith('https://'):
+            provider_result = provider_result._replace(
+                url=f'http://{provider_result.url[8:]}'
+            )
+
         return provider_result
 
     def _get_provider_params(self, operation_name, call_args):

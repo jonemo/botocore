@@ -363,6 +363,7 @@ def empty_resolver():
         builtins={},
         client_context=None,
         event_emitter=None,
+        use_ssl=True,
     )
 
 

@@ -177,6 +177,7 @@ class ClientArgsCreator:
                 builtins=resolver_builtins,
                 client_context=client_context,
                 event_emitter=event_emitter,
+                use_ssl=is_secure,
             )
 
         return {

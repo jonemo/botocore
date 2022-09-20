@@ -486,8 +486,12 @@ class EndpointResolverv2:
             call_args = {}
 
         provider_params = self._get_provider_params(operation_name, call_args)
-        provider_v2_result = self._provider.resolve_endpoint(**provider_params)
-        return provider_v2_result
+        LOG.debug(
+            'Calling endpoint provider with parameters: %s' % provider_params
+        )
+        provider_result = self._provider.resolve_endpoint(**provider_params)
+        LOG.debug('Endpoint provider result: %s' % provider_result.url)
+        return provider_result
 
     def _get_provider_params(self, operation_name, call_args):
         """Resolve a value for each parameter defined in the service's ruleset

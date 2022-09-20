@@ -597,6 +597,9 @@ class ClientEndpointBridge:
                 service_name, region_name, endpoint_url, is_secure
             )
 
+    def resolver_uses_builtin_data(self):
+        return self.endpoint_resolver.uses_builtin_data
+
     def _check_default_region(self, service_name, region_name):
         if region_name is not None:
             return region_name

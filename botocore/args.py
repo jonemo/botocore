@@ -529,7 +529,7 @@ class ClientArgsCreator:
         # If an endpoints.json data file other than the one bundled within
         # the botocore/data directory is used, the output of legacy
         # endpoint resolution is provided to EndpointResolverv2.
-        elif not endpoint_bridge.endpoint_resolver.uses_builtin_data:
+        elif not endpoint_bridge.resolver_uses_builtin_data():
             given_endpoint = legacy_endpoint_url
         else:
             given_endpoint = None

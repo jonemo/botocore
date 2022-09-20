@@ -35,6 +35,7 @@ class TestCreateClientArgs(unittest.TestCase):
         self.service_model = self._get_service_model()
         self.bridge = mock.Mock(ClientEndpointBridge)
         self._set_endpoint_bridge_resolve()
+        self._set_resolver_uses_builtin()
         self.default_socket_options = [
             (socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         ]
@@ -63,6 +64,9 @@ class TestCreateClientArgs(unittest.TestCase):
         }
         ret_val.update(**override_kwargs)
         self.bridge.resolve.return_value = ret_val
+
+    def _set_resolver_uses_builtin(self, uses_builtin=True):
+        self.bridge.resolver_uses_builtin_data.return_value = uses_builtin
 
     def call_get_client_args(self, **override_kwargs):
         call_kwargs = {

@@ -1056,7 +1056,14 @@ class TestHandlers(BaseSessionTest):
 
     def test_set_operation_specific_signer_s3v4_unsigned_payload(self):
         signing_name = 's3'
-        context = {'auth_type': 'v4-unsigned-body'}
+        context = {
+            'auth_type': 'v4-unsigned-body',
+            'signing': {
+                'foo': 'bar',
+                'region': 'abc',
+                'disableDoubleEncoding': True,
+            },
+        }
         response = handlers.set_operation_specific_signer(
             context=context, signing_name=signing_name
         )
@@ -1069,7 +1076,10 @@ class TestHandlers(BaseSessionTest):
 )
 def test_set_operation_specific_signer_s3v4(auth_type, expected_response):
     signing_name = 's3'
-    context = {'auth_type': auth_type}
+    context = {
+        'auth_type': auth_type,
+        'signing': {'disableDoubleEncoding': True},
+    }
     response = handlers.set_operation_specific_signer(
         context=context, signing_name=signing_name
     )

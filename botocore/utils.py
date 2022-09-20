@@ -1506,20 +1506,22 @@ def hyphenize_service_id(service_id):
 
 class S3RegionRedirector:
     def __init__(self, endpoint_bridge, client, cache=None):
-        self._endpoint_resolver = endpoint_bridge
-        self._cache = cache
-        if self._cache is None:
-            self._cache = {}
+        self._cache = cache or {}
 
         # This needs to be a weak ref in order to prevent memory leaks on
         # python 2.6
         self._client = weakref.proxy(client)
 
     def register(self, event_emitter=None):
+        logger.debug('Registering S3 region redirector handler')
         emitter = event_emitter or self._client.meta.events
         emitter.register('needs-retry.s3', self.redirect_from_error)
-        emitter.register('before-call.s3', self.set_request_url)
-        emitter.register('before-parameter-build.s3', self.redirect_from_cache)
+        emitter.register(
+            'before-parameter-build.s3', self.annotate_request_context
+        )
+        emitter.register(
+            'before-endpoint-resolution.s3', self.redirect_from_cache
+        )
 
     def redirect_from_error(self, request_dict, response, operation, **kwargs):
         """
@@ -1533,13 +1535,18 @@ class S3RegionRedirector:
             # transport error.
             return
 
-        if self._is_s3_accesspoint(request_dict.get('context', {})):
+        if '.s3-accesspoint.' in request_dict.get('url', ''):
             logger.debug(
-                'S3 request was previously to an accesspoint, not redirecting.'
+                'S3 request was previously for an Accesspoint ARN, not '
+                'redirecting.'
             )
             return
 
-        if request_dict.get('context', {}).get('s3_redirected'):
+        if (
+            request_dict.get('context', {})
+            .get('s3_redirect', {})
+            .get('redirected')
+        ):
             logger.debug(
                 'S3 request was previously redirected, not redirecting.'
             )
@@ -1580,7 +1587,7 @@ class S3RegionRedirector:
         ):
             return
 
-        bucket = request_dict['context']['signing']['bucket']
+        bucket = request_dict['context']['s3_redirect']['bucket']
         client_region = request_dict['context'].get('client_region')
         new_region = self.get_bucket_region(bucket, response)
 
@@ -1598,20 +1605,30 @@ class S3RegionRedirector:
             "unnecessary redirects and signing attempts."
             % (client_region, bucket, new_region)
         )
-        endpoint = self._endpoint_resolver.resolve('s3', new_region)
-        endpoint = endpoint['endpoint_url']
+        # Adding the new region to _cache will make construct_endpoint() to
+        # use the new region as value for the AWS::Region builtin parameter.
+        self._cache[bucket] = new_region
 
-        signing_context = {
-            'region': new_region,
-            'bucket': bucket,
-            'endpoint': endpoint,
-        }
-        request_dict['context']['signing'] = signing_context
-
-        self._cache[bucket] = signing_context
-        self.set_request_url(request_dict, request_dict['context'])
-
-        request_dict['context']['s3_redirected'] = True
+        # Re-resolve endpoint with new region and modify request_dict with
+        # the new URL, auth scheme, and signing context.
+        ep_resolver = self._client._endpoint_resolver_v2
+        ep_info = self._client._endpoint_resolver_v2.construct_endpoint(
+            service_name='s3',
+            operation_name=operation.name,
+            call_args=request_dict['context']['s3_redirect']['params'],
+        )
+        request_dict['url'] = self.set_request_url(
+            request_dict['url'], ep_info.url
+        )
+        request_dict['context']['s3_redirect']['redirected'] = True
+        auth_schemes = ep_info.properties.get('authSchemes')
+        if auth_schemes is not None:
+            (
+                auth_type,
+                signing_context,
+            ) = ep_resolver.auth_schemes_to_signing_context(auth_schemes)
+            request_dict['context']['auth_type'] = auth_type
+            request_dict['context']['signing'].update(signing_context)
 
         # Return 0 so it doesn't wait to retry
         return 0
@@ -1649,27 +1666,36 @@ class S3RegionRedirector:
         region = headers.get('x-amz-bucket-region', None)
         return region
 
-    def set_request_url(self, params, context, **kwargs):
-        endpoint = context.get('signing', {}).get('endpoint', None)
-        if endpoint is not None:
-            params['url'] = _get_new_endpoint(params['url'], endpoint, False)
+    def set_request_url(self, old_url, new_endpoint, **kwargs):
+        """
+        Splice a new endpoint into an existing URL. Note that some endpoints
+        from the the endpoint provider have a path component which will be
+        discarded by this function.
+        """
+        return _get_new_endpoint(old_url, new_endpoint, False)
 
-    def redirect_from_cache(self, params, context, **kwargs):
+    def redirect_from_cache(self, builtins, operation_name, params, **kwargs):
         """
-        This handler retrieves a given bucket's signing context from the cache
-        and adds it into the request context.
+        If a bucket name has been redirected before, it is in the cache. This
+        handler will update the AWS::Region endpoint resolver builtin param
+        to use the region from cache instead of the client region to avoid the
+        redirect.
         """
-        if self._is_s3_accesspoint(context):
-            return
         bucket = params.get('Bucket')
-        signing_context = self._cache.get(bucket)
-        if signing_context is not None:
-            context['signing'] = signing_context
-        else:
-            context['signing'] = {'bucket': bucket}
+        if bucket is not None and bucket in self._cache:
+            new_region = self._cache.get(bucket)
+            builtins['AWS::Region'] = new_region
 
-    def _is_s3_accesspoint(self, context):
-        return 's3_accesspoint' in context
+    def annotate_request_context(self, params, context, **kwargs):
+        """Store the bucket name in context for later use when redirecting.
+        The bucket name may be an access point ARN or alias.
+        """
+        bucket = params.get('Bucket')
+        context['s3_redirect'] = {
+            'redirected': False,
+            'bucket': bucket,
+            'params': params,
+        }
 
 
 class InvalidArnException(ValueError):

@@ -72,6 +72,7 @@ from botocore.utils import (
     has_header,
     instance_cache,
     is_json_value_header,
+    is_s3_accelerate_url,
     is_valid_endpoint_url,
     is_valid_ipv6_endpoint_url,
     is_valid_uri,
@@ -3306,3 +3307,28 @@ class TestDetermineContentLength(unittest.TestCase):
 
         length = determine_content_length(Seekable())
         self.assertEqual(length, 50)
+
+
+@pytest.mark.parametrize(
+    'url, expected',
+    (
+        ('https://s3-accelerate.amazonaws.com', True),
+        ('https://s3-accelerate.amazonaws.com/', True),
+        ('https://s3-accelerate.amazonaws.com/key', True),
+        ('http://s3-accelerate.amazonaws.com/key', True),
+        ('https://s3-accelerate.foo.amazonaws.com/key', False),
+        # bucket prefixes are not allowed
+        ('https://bucket.s3-accelerate.amazonaws.com/key', False),
+        # S3 accelerate can be combined with dualstack
+        ('https://s3-accelerate.dualstack.amazonaws.com/key', True),
+        ('https://bucket.s3-accelerate.dualstack.amazonaws.com/key', False),
+        ('https://s3-accelerate.dualstack.dualstack.amazonaws.com/key', False),
+        ('https://s3-accelerate.dualstack.foo.amazonaws.com/key', False),
+        ('https://dualstack.s3-accelerate.amazonaws.com/key', False),
+        # assorted other ways for URLs to not be valid for s3-accelerate
+        ('ftp://s3-accelerate.dualstack.foo.amazonaws.com/key', False),
+        ('https://s3-accelerate.dualstack.foo.c2s.ic.gov/key', False),
+    ),
+)
+def test_is_s3_accelerate_url(url, expected):
+    assert is_s3_accelerate_url(url) == expected

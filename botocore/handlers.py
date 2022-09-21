@@ -1076,21 +1076,16 @@ def customize_endpoint_resolver_builtins(
     The corresponding event is emitted only if at least one builtin parameter
     value is required for endpoint resolution for the operation.
     """
-    # Accelerate is not compatible with path-style addresses
-    if builtins[EndpointResolverBuiltins.AWS_S3_ACCELERATE]:
-        builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = False
-
+    bucket_name = params.get('Bucket')
     # In some situations the host will return AuthorizationHeaderMalformed
     # when the signing region of a sigv4 request is not the bucket's
-    # region (which is likely unknown by the sender of this request).
+    # region (which is likely unknown by the user of GetBucketLocation).
     # Avoid this by always using path-style addressing.
     if operation_name == "GetBucketLocation":
         builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
-
-    bucket_name = params.get('Bucket')
-    if bucket_name:
-        # All situations where the bucket name is an ARN are not compatible
-        # with path style addressing.
+    # All situations where the bucket name is an ARN are not compatible
+    # with path style addressing.
+    elif bucket_name:
         arn_parser = ArnParser()
         if ':' in bucket_name:
             try:

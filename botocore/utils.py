@@ -2904,3 +2904,34 @@ class EventbridgeSignerSetter:
             dns_suffix = self._DEFAULT_DNS_SUFFIX
 
         return f"https://{endpoint}.endpoint.events.{dns_suffix}/"
+
+
+def is_s3_accelerate_url(url):
+    """Does the URL match the S3 Accelerate endpoint scheme?
+
+    Virtual host naming style with bucket names in the netloc part of the URL
+    are not allowed by this function.
+    """
+
+    # Accelerate is only valid for Amazon endpoints.
+    url_parts = urlsplit(url)
+    if not url_parts.netloc.endswith(
+        'amazonaws.com'
+    ) or url_parts.scheme not in ['https', 'http']:
+        return False
+
+    # The first part of the URL must be s3-accelerate.
+    parts = url_parts.netloc.split('.')
+    if parts[0] != 's3-accelerate':
+        return False
+
+    # Url parts between 's3-accelerate' and 'amazonaws.com' which
+    # represent different url features.
+    feature_parts = parts[1:-2]
+
+    # There should be no duplicate URL parts.
+    if len(feature_parts) != len(set(feature_parts)):
+        return False
+
+    # Remaining parts must all be in the whitelist.
+    return all(p in S3_ACCELERATE_WHITELIST for p in feature_parts)

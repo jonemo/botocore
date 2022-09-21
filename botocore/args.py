@@ -28,7 +28,7 @@ from botocore.endpoint import EndpointCreator
 from botocore.regions import EndpointResolverBuiltins as EPRBuiltins
 from botocore.regions import EndpointResolverv2
 from botocore.signers import RequestSigner
-from botocore.utils import ensure_boolean
+from botocore.utils import ensure_boolean, is_s3_accelerate_url
 
 logger = logging.getLogger(__name__)
 
@@ -540,6 +540,20 @@ class ClientArgsCreator:
         else:
             given_endpoint = None
 
+        # The endpoint rulesets differ from legacy botocore behavior in whether
+        # forcing path style addressing in incompatible situations raises an
+        # exception or silently ignores the config setting. The
+        # AWS_S3_FORCE_PATH_STYLE parameter is adjusted both here and for each
+        # operation so that the ruleset behavior is backwards compatible.
+        if s3_config.get('use_accelerate_endpoint', False):
+            force_path_style = False
+        elif client_endpoint_url is not None and not is_s3_accelerate_url(
+            client_endpoint_url
+        ):
+            force_path_style = s3_config.get('addressing_style') != 'virtual'
+        else:
+            force_path_style = s3_config.get('addressing_style') == 'path'
+
         return {
             EPRBuiltins.AWS_REGION: region_name,
             EPRBuiltins.AWS_USE_FIPS: (
@@ -575,9 +589,7 @@ class ClientArgsCreator:
             EPRBuiltins.AWS_S3_ACCELERATE: s3_config.get(
                 'use_accelerate_endpoint', False
             ),
-            EPRBuiltins.AWS_S3_FORCE_PATH_STYLE: (
-                s3_config.get('addressing_style') == 'path'
-            ),
+            EPRBuiltins.AWS_S3_FORCE_PATH_STYLE: force_path_style,
             EPRBuiltins.AWS_S3_USE_ARN_REGION: s3_config.get(
                 'use_arn_region', True
             ),

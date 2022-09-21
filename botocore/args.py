@@ -543,16 +543,24 @@ class ClientArgsCreator:
         return {
             EPRBuiltins.AWS_REGION: region_name,
             EPRBuiltins.AWS_USE_FIPS: (
-                endpoint_bridge._resolve_endpoint_variant_config_var(
+                # SDK_ENDPOINT cannot be combined with AWS_USE_FIPS
+                given_endpoint is None
+                # use legacy resolver's _resolve_endpoint_variant_config_var()
+                # or default to False if it returns None
+                and endpoint_bridge._resolve_endpoint_variant_config_var(
                     'use_fips_endpoint'
                 )
                 or False
-                and not given_endpoint
             ),
             EPRBuiltins.AWS_USE_DUALSTACK: (
-                endpoint_bridge._resolve_use_dualstack_endpoint(service_name)
+                # SDK_ENDPOINT cannot be combined with AWS_USE_DUALSTACK
+                given_endpoint is None
+                # use legacy resolver's _resolve_use_dualstack_endpoint() and
+                # or default to False if it returns None
+                and endpoint_bridge._resolve_use_dualstack_endpoint(
+                    service_name
+                )
                 or False
-                and not given_endpoint
             ),
             EPRBuiltins.AWS_STS_USE_GLOBAL_ENDPOINT: (
                 self._should_set_global_sts_endpoint(

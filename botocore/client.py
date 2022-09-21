@@ -921,7 +921,10 @@ class BaseClient:
             # If authSchemes is present, overwrite default auth type and
             # signing context derived from service model.
             auth_schemes = endpoint_info.properties.get('authSchemes')
-            if auth_schemes is not None:
+            client_config_sig_version = _get_configured_signature_version(
+                service_name, self._client_config, None
+            )
+            if auth_schemes is not None and client_config_sig_version is None:
                 logger.debug(
                     'Endpoing provider returnd list of auth schemes: %s',
                     ', '.join([s.get('name') for s in auth_schemes]),

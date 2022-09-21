@@ -25,6 +25,7 @@ from botocore import xform_name
 from botocore.auth import AUTH_TYPE_MAPS, HAS_CRT
 from botocore.endpoint_provider import EndpointProvider
 from botocore.exceptions import (
+    EndpointProviderError,
     EndpointVariantError,
     FailedEndpointProviderParameterResolution,
     MissingDependencyException,
@@ -32,6 +33,9 @@ from botocore.exceptions import (
     UnknownEndpointResolutionBuiltInName,
     UnknownRegionError,
     UnknownSignatureVersionError,
+    UnsupportedS3AccesspointConfigurationError,
+    UnsupportedS3ControlArnError,
+    UnsupportedS3ControlConfigurationError,
 )
 from botocore.utils import ensure_boolean, instance_cache
 
@@ -491,7 +495,18 @@ class EndpointResolverv2:
         LOG.debug(
             'Calling endpoint provider with parameters: %s' % provider_params
         )
-        provider_result = self._provider.resolve_endpoint(**provider_params)
+        try:
+            provider_result = self._provider.resolve_endpoint(
+                **provider_params
+            )
+        except EndpointProviderError as ex:
+            botocore_exception = self.ruleset_error_to_botocore_exception(
+                ex, provider_params
+            )
+            if botocore_exception is None:
+                raise
+            else:
+                raise botocore_exception from ex
         LOG.debug('Endpoint provider result: %s' % provider_result.url)
 
         # The endpoint provider does not support non-secure transport.
@@ -689,3 +704,23 @@ class EndpointResolverv2:
                 raise UnknownSignatureVersionError(
                     signature_version=', '.join(auth_type_options)
                 )
+
+    def ruleset_error_to_botocore_exception(self, ruleset_exception, params):
+        """Attempts to translate ruleset errors to pre-existing botocore
+        exception types by string matching exception strings.
+        """
+        msg = ruleset_exception.kwargs.get('msg')
+        if msg is None:
+            return
+        service_name = self._service_model.service_name
+
+        if service_name == 's3':
+            if msg.startswith('Invalid configuration: region from ARN'):
+                return UnsupportedS3AccesspointConfigurationError(msg=msg)
+        if service_name == 's3control':
+            if msg.startswith('Invalid ARN:'):
+                arn = params.get('Bucket')
+                return UnsupportedS3ControlArnError(arn=arn, msg=msg)
+            if msg.startswith('Invalid configuration:'):
+                return UnsupportedS3ControlConfigurationError(msg=msg)
+        return None

@@ -2090,6 +2090,17 @@ CHECKSUM_TEST_CASES = [
     ),
 ]
 
+accesspoint_arn = "arn:aws:s3:us-west-2:123456789012:accesspoint:myendpoint"
+accesspoint_arn_cn = (
+    "arn:aws-cn:s3:cn-north-1:123456789012:accesspoint:myendpoint"
+)
+accesspoint_arn_gov = (
+    "arn:aws-us-gov:s3:us-gov-west-1:123456789012:accesspoint:myendpoint"
+)
+accesspoint_cross_region_arn_gov = (
+    "arn:aws-us-gov:s3:us-gov-east-1:123456789012:accesspoint:myendpoint"
+)
+
 
 @pytest.mark.parametrize("operation, operation_kwargs", CHECKSUM_TEST_CASES)
 def test_checksums_included_in_expected_operations(
@@ -2698,9 +2709,6 @@ def _s3_addressing_test_cases():
     )
 
     # Access-point arn cases
-    accesspoint_arn = (
-        "arn:aws:s3:us-west-2:123456789012:accesspoint:myendpoint"
-    )
     yield dict(
         region="us-west-2",
         bucket=accesspoint_arn,
@@ -2750,16 +2758,6 @@ def _s3_addressing_test_cases():
         ),
     )
     yield dict(
-        region="us-east-1",
-        bucket=accesspoint_arn,
-        key="key",
-        s3_config={"use_arn_region": False},
-        expected_url=(
-            "https://myendpoint-123456789012.s3-accesspoint."
-            "us-east-1.amazonaws.com/key"
-        ),
-    )
-    yield dict(
         region="s3-external-1",
         bucket=accesspoint_arn,
         key="key",
@@ -2784,24 +2782,11 @@ def _s3_addressing_test_cases():
         region="unknown",
         bucket=accesspoint_arn,
         key="key",
-        s3_config={"use_arn_region": False},
-        expected_url=(
-            "https://myendpoint-123456789012.s3-accesspoint."
-            "unknown.amazonaws.com/key"
-        ),
-    )
-    yield dict(
-        region="unknown",
-        bucket=accesspoint_arn,
-        key="key",
         s3_config={"use_arn_region": True},
         expected_url=(
             "https://myendpoint-123456789012.s3-accesspoint."
             "us-west-2.amazonaws.com/key"
         ),
-    )
-    accesspoint_arn_cn = (
-        "arn:aws-cn:s3:cn-north-1:123456789012:accesspoint:myendpoint"
     )
     yield dict(
         region="cn-north-1",
@@ -2820,22 +2805,6 @@ def _s3_addressing_test_cases():
             "https://myendpoint-123456789012.s3-accesspoint."
             "cn-north-1.amazonaws.com.cn/key"
         ),
-    )
-    yield dict(
-        region="cn-northwest-1",
-        bucket=accesspoint_arn_cn,
-        key="key",
-        s3_config={"use_arn_region": False},
-        expected_url=(
-            "https://myendpoint-123456789012.s3-accesspoint."
-            "cn-northwest-1.amazonaws.com.cn/key"
-        ),
-    )
-    accesspoint_arn_gov = (
-        "arn:aws-us-gov:s3:us-gov-west-1:123456789012:accesspoint:myendpoint"
-    )
-    accesspoint_cross_region_arn_gov = (
-        "arn:aws-us-gov:s3:us-gov-east-1:123456789012:accesspoint:myendpoint"
     )
     yield dict(
         region="us-gov-west-1",
@@ -2921,16 +2890,6 @@ def _s3_addressing_test_cases():
         expected_url=(
             "https://myendpoint-123456789012.s3-accesspoint.dualstack."
             "us-west-2.amazonaws.com/key"
-        ),
-    )
-    yield dict(
-        region="us-east-1",
-        bucket=accesspoint_arn,
-        key="key",
-        s3_config={"use_dualstack_endpoint": True, "use_arn_region": False},
-        expected_url=(
-            "https://myendpoint-123456789012.s3-accesspoint.dualstack."
-            "us-east-1.amazonaws.com/key"
         ),
     )
     yield dict(
@@ -3150,11 +3109,62 @@ def _s3_addressing_test_cases():
     )
 
 
+def _s3_addressing_invalid_test_cases():
+    # client region does not match access point ARN region and use_arn_region
+    # is False. If sent to service, this results in an "invalid access point"
+    # response. We expect it to be caught by the S3 endpoints ruleset.
+    yield dict(
+        region="us-east-1",
+        bucket=accesspoint_arn,
+        key="key",
+        s3_config={"use_arn_region": False},
+        expected_exception_type=UnsupportedS3AccesspointConfigurationError,
+        expected_exception_regex=(
+            "region from ARN `us-west-2` does not match client region "
+            "`us-east-1`"
+        ),
+    )
+    yield dict(
+        region="cn-northwest-1",
+        bucket=accesspoint_arn_cn,
+        key="key",
+        s3_config={"use_arn_region": False},
+        expected_exception_type=UnsupportedS3AccesspointConfigurationError,
+        expected_exception_regex=(
+            "region from ARN `cn-north-1` does not match client region "
+            "`cn-northwest-1`"
+        ),
+    )
+    yield dict(
+        region="unknown",
+        bucket=accesspoint_arn,
+        key="key",
+        s3_config={"use_arn_region": False},
+        expected_exception_type=UnsupportedS3AccesspointConfigurationError,
+        expected_exception_regex=None,
+    )
+    yield dict(
+        region="us-east-1",
+        bucket=accesspoint_arn,
+        key="key",
+        s3_config={"use_arn_region": False},
+        expected_exception_type=UnsupportedS3AccesspointConfigurationError,
+        expected_exception_regex=None,
+    )
+
+
 @pytest.mark.parametrize("test_case", _s3_addressing_test_cases())
 def test_correct_url_used_for_s3(test_case):
     # Test that given various sets of config options and bucket names,
     # we construct the expect endpoint url.
     _verify_expected_endpoint_url(**test_case)
+
+
+@pytest.mark.parametrize("test_case", _s3_addressing_invalid_test_cases())
+def test_correct_exception_raise_for_s3(test_case):
+    # Test that invalid sets of config options and bucket names, result in
+    # appropriate exceptions.
+    _verify_expected_exception(**test_case)
 
 
 def _verify_expected_endpoint_url(
@@ -3166,6 +3176,56 @@ def _verify_expected_endpoint_url(
     customer_provided_endpoint=None,
     expected_url=None,
     signature_version=None,
+    use_fips_endpoint=None,
+):
+    s3 = _create_s3_client(
+        region=region,
+        is_secure=is_secure,
+        endpoint_url=customer_provided_endpoint,
+        s3_config=s3_config,
+        signature_version=signature_version,
+        use_fips_endpoint=use_fips_endpoint,
+    )
+    with ClientHTTPStubber(s3) as http_stubber:
+        http_stubber.add_response()
+        s3.put_object(Bucket=bucket, Key=key, Body=b"bar")
+        assert http_stubber.requests[0].url == expected_url
+
+
+def _verify_expected_exception(
+    expected_exception_type,
+    expected_exception_regex=None,
+    region=None,
+    bucket="bucket",
+    key="key",
+    s3_config=None,
+    is_secure=True,
+    customer_provided_endpoint=None,
+    signature_version=None,
+    use_fips_endpoint=None,
+):
+    s3 = _create_s3_client(
+        region=region,
+        is_secure=is_secure,
+        endpoint_url=customer_provided_endpoint,
+        s3_config=s3_config,
+        signature_version=signature_version,
+        use_fips_endpoint=use_fips_endpoint,
+    )
+    with ClientHTTPStubber(s3) as http_stubber:
+        http_stubber.add_response()
+        with pytest.raises(
+            expected_exception_type, match=expected_exception_regex
+        ):
+            s3.put_object(Bucket=bucket, Key=key, Body=b"bar")
+
+
+def _create_s3_client(
+    region,
+    is_secure,
+    endpoint_url,
+    s3_config,
+    signature_version,
     use_fips_endpoint=None,
 ):
     environ = {}
@@ -3181,31 +3241,6 @@ def _verify_expected_endpoint_url(
             s3=s3_config,
             use_fips_endpoint=use_fips_endpoint,
         )
-        s3 = session.create_client(
-            "s3",
-            region_name=region,
-            use_ssl=is_secure,
-            config=config,
-            endpoint_url=customer_provided_endpoint,
-        )
-        with ClientHTTPStubber(s3) as http_stubber:
-            http_stubber.add_response()
-            s3.put_object(Bucket=bucket, Key=key, Body=b"bar")
-            assert http_stubber.requests[0].url == expected_url
-
-
-def _create_s3_client(
-    region, is_secure, endpoint_url, s3_config, signature_version
-):
-    environ = {}
-    with mock.patch("os.environ", environ):
-        environ["AWS_ACCESS_KEY_ID"] = "access_key"
-        environ["AWS_SECRET_ACCESS_KEY"] = "secret_key"
-        environ["AWS_CONFIG_FILE"] = "no-exist-foo"
-        environ["AWS_SHARED_CREDENTIALS_FILE"] = "no-exist-foo"
-        session = create_session()
-        session.config_filename = "no-exist-foo"
-        config = Config(signature_version=signature_version, s3=s3_config)
         s3 = session.create_client(
             "s3",
             region_name=region,
@@ -3368,9 +3403,6 @@ def _addressing_for_presigned_url_test_cases():
     )
 
     # Access-point
-    accesspoint_arn = (
-        "arn:aws:s3:us-west-2:123456789012:accesspoint:myendpoint"
-    )
     yield dict(
         region="us-west-2",
         bucket=accesspoint_arn,
@@ -3378,16 +3410,6 @@ def _addressing_for_presigned_url_test_cases():
         expected_url=(
             "https://myendpoint-123456789012.s3-accesspoint."
             "us-west-2.amazonaws.com/key"
-        ),
-    )
-    yield dict(
-        region="us-east-1",
-        bucket=accesspoint_arn,
-        key="key",
-        s3_config={"use_arn_region": False},
-        expected_url=(
-            "https://myendpoint-123456789012.s3-accesspoint."
-            "us-east-1.amazonaws.com/key"
         ),
     )
 

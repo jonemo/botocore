@@ -154,9 +154,15 @@ class ClientArgsCreator:
             # resolver's output, including final_args, s3_config, ...
             s3_config_raw = self.compute_s3_config(client_config) or {}
             service_name_raw = service_model.endpoint_prefix
+            # Maintain complex logic for s3 and sts endpoints for backwards
+            # compatibility.
+            if service_name_raw in ['s3', 'sts']:
+                eprv2_region_name = endpoint_region_name
+            else:
+                eprv2_region_name = region_name
             resolver_builtins = (
                 self.compute_endpoint_resolver_builtin_defaults(
-                    region_name=region_name,
+                    region_name=eprv2_region_name,
                     service_name=service_name_raw,
                     s3_config=s3_config_raw,
                     endpoint_bridge=endpoint_bridge,

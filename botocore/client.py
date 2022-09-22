@@ -44,8 +44,8 @@ from botocore.utils import (
     EventbridgeSignerSetter,
     S3ArnParamHandler,
     S3ControlArnParamHandler,
-    S3ControlEndpointSetter,
-    S3EndpointSetter,
+    S3ControlEndpointSetter,  # noqa
+    S3EndpointSetter,  # noqa
     S3RegionRedirector,
     ensure_boolean,
     get_service_module_name,
@@ -156,6 +156,7 @@ class ClientCreator:
         service_client = cls(**client_args)
         self._register_retries(service_client)
         self._register_s3_events(client=service_client)
+        self._register_s3_control_events(client=service_client)
 
         if client_args['endpoint_resolver_v2'] is None:
             # When using the legacy endpoint resolver, several event handlers
@@ -363,23 +364,10 @@ class ClientCreator:
     def _register_s3_control_events(
         self,
         client,
-        endpoint_bridge,
-        endpoint_url,
-        client_config,
-        scoped_config,
     ):
         if client.meta.service_model.service_name != 's3control':
             return
-        use_fips_endpoint = client.meta.config.use_fips_endpoint
         S3ControlArnParamHandler().register(client.meta.events)
-        S3ControlEndpointSetter(
-            endpoint_resolver=self._endpoint_resolver,
-            region=client.meta.region_name,
-            s3_config=client.meta.config.s3,
-            endpoint_url=endpoint_url,
-            partition=client.meta.partition,
-            use_fips_endpoint=use_fips_endpoint,
-        ).register(client.meta.events)
 
     def _set_s3_presign_signature_version(
         self, client_meta, client_config, scoped_config

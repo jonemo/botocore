@@ -30,10 +30,12 @@ from botocore.exceptions import (
     FailedEndpointProviderParameterResolution,
     MissingDependencyException,
     NoRegionError,
+    ParamValidationError,
     UnknownEndpointResolutionBuiltInName,
     UnknownRegionError,
     UnknownSignatureVersionError,
     UnsupportedS3AccesspointConfigurationError,
+    UnsupportedS3ConfigurationError,
     UnsupportedS3ControlArnError,
     UnsupportedS3ControlConfigurationError,
 )
@@ -715,12 +717,25 @@ class EndpointResolverv2:
         service_name = self._service_model.service_name
 
         if service_name == 's3':
-            if msg.startswith('Invalid configuration: region from ARN'):
+            if msg == 'S3 Object Lambda does not support S3 Accelerate':
+                return UnsupportedS3ConfigurationError(msg=msg)
+            if (
+                msg.startswith('S3 Outposts does not support')
+                or msg.startswith('S3 MRAP does not support')
+                or msg.startswith('S3 Object Lambda does not support')
+                or msg.startswith('Access Points do not support')
+                or msg.startswith('Invalid configuration:')
+                or msg.startswith('Client was configured for partition')
+            ):
                 return UnsupportedS3AccesspointConfigurationError(msg=msg)
+            if msg.lower().startswith('invalid arn:'):
+                return ParamValidationError(report=msg)
         if service_name == 's3control':
             if msg.startswith('Invalid ARN:'):
                 arn = params.get('Bucket')
                 return UnsupportedS3ControlArnError(arn=arn, msg=msg)
-            if msg.startswith('Invalid configuration:'):
+            if msg.startswith('Invalid configuration:') or msg.startswith(
+                'Client was configured for partition'
+            ):
                 return UnsupportedS3ControlConfigurationError(msg=msg)
         return None

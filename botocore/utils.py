@@ -1628,7 +1628,10 @@ class S3RegionRedirector:
                 signing_context,
             ) = ep_resolver.auth_schemes_to_signing_context(auth_schemes)
             request_dict['context']['auth_type'] = auth_type
-            request_dict['context']['signing'].update(signing_context)
+            request_dict['context']['signing'] = {
+                **request_dict['context'].get('signing', {}),
+                **signing_context,
+            }
 
         # Return 0 so it doesn't wait to retry
         return 0

@@ -902,9 +902,7 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
             config=Config(s3={"use_arn_region": False}),
         )
         expected_exception = UnsupportedS3AccesspointConfigurationError
-        with self.assertRaisesRegex(
-            expected_exception, "ARNs in another region are not allowed"
-        ):
+        with self.assertRaises(expected_exception):
             self.client.list_objects(Bucket=s3_object_lambda_arn)
 
     def test_s3_object_lambda_with_global_regions(self):
@@ -913,12 +911,11 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
             "accesspoint/mybanner"
         )
         expected_exception = UnsupportedS3AccesspointConfigurationError
-        expected_msg = "a regional endpoint must be specified"
         for region in ("aws-global", "s3-external-1"):
             self.client, _ = self.create_stubbed_s3_client(
                 region_name=region, config=Config(s3={"use_arn_region": False})
             )
-            with self.assertRaisesRegex(expected_exception, expected_msg):
+            with self.assertRaises(expected_exception):
                 self.client.list_objects(Bucket=s3_object_lambda_arn)
 
     def test_s3_object_lambda_arn_with_us_east_1(self):
@@ -969,9 +966,7 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
             region_name="fips-east-1"
         )
         expected_exception = UnsupportedS3AccesspointConfigurationError
-        with self.assertRaisesRegex(
-            expected_exception, "outpost ARNs do not support FIPS"
-        ):
+        with self.assertRaises(expected_exception):
             self.client.list_objects(Bucket=outpost_arn)
 
     def test_accesspoint_fips_raise_for_cross_region(self):
@@ -984,9 +979,7 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
             config=Config(s3={"use_arn_region": False}),
         )
         expected_exception = UnsupportedS3AccesspointConfigurationError
-        with self.assertRaisesRegex(
-            expected_exception, "ARNs in another region are not allowed"
-        ):
+        with self.assertRaises(expected_exception):
             self.client.list_objects(Bucket=s3_accesspoint_arn)
 
     def test_accesspoint_fips_raise_if_fips_in_arn(self):
@@ -998,9 +991,7 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
             region_name="fips-us-gov-west-1",
         )
         expected_exception = UnsupportedS3AccesspointConfigurationError
-        with self.assertRaisesRegex(
-            expected_exception, "Invalid ARN, FIPS region not allowed in ARN."
-        ):
+        with self.assertRaises(expected_exception):
             self.client.list_objects(Bucket=s3_accesspoint_arn)
 
     def test_accesspoint_with_global_regions(self):
@@ -1012,9 +1003,7 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
             config=Config(s3={"use_arn_region": False}),
         )
         expected_exception = UnsupportedS3AccesspointConfigurationError
-        with self.assertRaisesRegex(
-            expected_exception, "regional endpoint must be specified"
-        ):
+        with self.assertRaises(expected_exception):
             self.client.list_objects(Bucket=s3_accesspoint_arn)
 
         # It shouldn't raise if use_arn_region is True
@@ -3437,7 +3426,7 @@ def _addressing_for_presigned_url_test_cases():
     "test_case", _addressing_for_presigned_url_test_cases()
 )
 def test_addressing_for_presigned_urls(test_case):
-    # Here's we're just focusing on the addressing mode used for presigned URLs.
+    # Here we're just focusing on the addressing mode used for presigned URLs.
     # We special case presigned URLs due to backward compatibility.
     _verify_presigned_url_addressing(**test_case)
 

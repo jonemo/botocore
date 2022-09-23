@@ -1721,6 +1721,17 @@ class ArnParser:
             'resource': arn_parts[5],
         }
 
+    @staticmethod
+    def is_arn(value):
+        if ':' not in value:
+            return False
+        arn_parser = ArnParser()
+        try:
+            arn_parser.parse_arn(value)
+            return True
+        except InvalidArnException:
+            return False
+
 
 class S3ArnParamHandler:
     _RESOURCE_REGEX = re.compile(

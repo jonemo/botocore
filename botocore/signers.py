@@ -662,9 +662,52 @@ def generate_presigned_url(
     if http_method is not None:
         request_dict['method'] = http_method
 
+    if self._endpoint_resolver_v2 is None:
+        endpoint_url = self.meta.endpoint_url
+    else:
+        endpoint_info = self._endpoint_resolver_v2.construct_endpoint(
+            service_name=self._service_model.service_name,
+            operation_name=operation_name,
+            call_args=params,
+            request_context=context,
+        )
+        endpoint_url = endpoint_info.url
+        request_dict['headers'].update(
+            {
+                # Multi-valued headers are not supported in botocore
+                header_key: header_values[0]
+                for header_key, header_values in endpoint_info.headers.items()
+            }
+        )
+        # If authSchemes is present, overwrite default auth type and
+        # signing context derived from service model.
+        auth_schemes = endpoint_info.properties.get('authSchemes')
+        if auth_schemes is not None:
+            (
+                auth_type,
+                signing_context,
+            ) = self._endpoint_resolver_v2.auth_schemes_to_signing_context(
+                auth_schemes
+            )
+            context['auth_type'] = auth_type
+            if 'signing' in context:
+                context['signing'].update(signing_context)
+            else:
+                context['signing'] = signing_context
+
     # Prepare the request dict by including the client's endpoint url.
     prepare_request_dict(
-        request_dict, endpoint_url=self.meta.endpoint_url, context=context
+        request_dict, endpoint_url=endpoint_url, context=context
+    )
+    self.meta.events.emit_until_response(
+        'before-call.{service_id}.{operation_name}'.format(
+            service_id=self._service_model.service_id.hyphenize(),
+            operation_name=operation_name,
+        ),
+        model=operation_model,
+        params=request_dict,
+        request_signer=request_signer,
+        context=context,
     )
 
     # Generate the presigned url.
@@ -758,26 +801,58 @@ def generate_presigned_post(
     if conditions is None:
         conditions = []
 
+    context = {
+        'is_presign_request': True,
+        'use_global_endpoint': _should_use_global_endpoint(self),
+    }
+
     post_presigner = S3PostPresigner(self._request_signer)
     serializer = self._serializer
 
     # We choose the CreateBucket operation model because its url gets
     # serialized to what a presign post requires.
     operation_model = self.meta.service_model.operation_model('CreateBucket')
+    params = {'Bucket': bucket}
+    params = self._emit_api_params(params, operation_model, context)
 
     # Create a request dict based on the params to serialize.
-    request_dict = serializer.serialize_to_request(
-        {'Bucket': bucket}, operation_model
-    )
+    request_dict = serializer.serialize_to_request(params, operation_model)
+
+    if self._ruleset_resolver is None:
+        endpoint_url = self.meta.endpoint_url
+    else:
+        endpoint_info = self._ruleset_resolver.construct_endpoint(
+            operation_model=operation_model,
+            call_args=params,
+            request_context=context,
+        )
+        endpoint_url = endpoint_info.url
+        request_dict['headers'].update(
+            {
+                # Multi-valued headers are not supported in botocore
+                header_key: header_values[0]
+                for header_key, header_values in endpoint_info.headers.items()
+            }
+        )
+        # If authSchemes is present, overwrite default auth type and
+        # signing context derived from service model.
+        auth_schemes = endpoint_info.properties.get('authSchemes')
+        if auth_schemes is not None:
+            (
+                auth_type,
+                signing_context,
+            ) = self._ruleset_resolver.auth_schemes_to_signing_context(
+                auth_schemes
+            )
+            context['auth_type'] = auth_type
+            if 'signing' in context:
+                context['signing'].update(signing_context)
+            else:
+                context['signing'] = signing_context
 
     # Prepare the request dict by including the client's endpoint url.
     prepare_request_dict(
-        request_dict,
-        endpoint_url=self.meta.endpoint_url,
-        context={
-            'is_presign_request': True,
-            'use_global_endpoint': _should_use_global_endpoint(self),
-        },
+        request_dict, endpoint_url=endpoint_url, context=context
     )
 
     # Append that the bucket name to the list of conditions.

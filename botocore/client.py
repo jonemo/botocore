@@ -892,13 +892,14 @@ class BaseClient:
         }
 
         if self._endpoint_resolver_v2 is None:
-            endpoint_url = self._endpoint.host
+            endpoint_url = self.meta.endpoint_url
             additional_headers = {}
         else:
             endpoint_info = self._endpoint_resolver_v2.construct_endpoint(
                 service_name=service_name,
                 operation_name=operation_name,
                 call_args=api_params,
+                request_context=request_context,
             )
             endpoint_url = endpoint_info.url
             additional_headers = {

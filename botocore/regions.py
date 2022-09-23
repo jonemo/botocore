@@ -481,6 +481,7 @@ class EndpointResolverv2:
         region_name=None,
         operation_name=None,
         call_args=None,
+        request_context=None,
     ):
         """Invokes the provider with params defined in the services ruleset
 
@@ -493,7 +494,12 @@ class EndpointResolverv2:
         if call_args is None:
             call_args = {}
 
-        provider_params = self._get_provider_params(operation_name, call_args)
+        if request_context is None:
+            request_context = {}
+
+        provider_params = self._get_provider_params(
+            operation_name, call_args, request_context
+        )
         LOG.debug(
             'Calling endpoint provider with parameters: %s' % provider_params
         )
@@ -519,7 +525,7 @@ class EndpointResolverv2:
 
         return provider_result
 
-    def _get_provider_params(self, operation_name, call_args):
+    def _get_provider_params(self, operation_name, call_args, request_context):
         """Resolve a value for each parameter defined in the service's ruleset
 
         The resolution order for parameter values is:
@@ -547,7 +553,7 @@ class EndpointResolverv2:
             if param_val is None and param_def.built_in is not None:
                 if customized_builtins is None:
                     customized_builtins = self._get_customized_builtins(
-                        operation_name, call_args
+                        operation_name, call_args, request_context
                     )
                 param_val = self._resolve_param_as_builtin(
                     builtin_name=param_def.built_in,
@@ -629,7 +635,9 @@ class EndpointResolverv2:
             for param in self._service_model.client_context_parameters
         }
 
-    def _get_customized_builtins(self, operation_name, call_args):
+    def _get_customized_builtins(
+        self, operation_name, call_args, request_context
+    ):
         service_id = self._service_model.service_id.hyphenize()
         customized_builtins = copy.copy(self._builtins)
         # Handlers are expected to modify the builtins dict in place.
@@ -638,6 +646,7 @@ class EndpointResolverv2:
             builtins=customized_builtins,
             operation_name=operation_name,
             params=call_args,
+            request_context=request_context,
         )
         return customized_builtins
 

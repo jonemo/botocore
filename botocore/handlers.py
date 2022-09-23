@@ -60,7 +60,6 @@ from botocore.signers import (
 from botocore.utils import (
     SAFE_CHARS,
     ArnParser,
-    InvalidArnException,
     conditionally_calculate_md5,
     percent_encode,
     switch_host_with_param,
@@ -1068,7 +1067,7 @@ def fix_s3_path(model, params, **kwargs):
 
 
 def customize_endpoint_resolver_builtins(
-    builtins, operation_name, params, **kwargs
+    builtins, operation_name, params, request_context, **kwargs
 ):
     """Modify builtin parameter values for endpoint resolver
 
@@ -1077,24 +1076,26 @@ def customize_endpoint_resolver_builtins(
     value is required for endpoint resolution for the operation.
     """
     bucket_name = params.get('Bucket')
+    bucket_is_arn = bucket_name is not None and ArnParser.is_arn(bucket_name)
     # In some situations the host will return AuthorizationHeaderMalformed
     # when the signing region of a sigv4 request is not the bucket's
     # region (which is likely unknown by the user of GetBucketLocation).
     # Avoid this by always using path-style addressing.
-    if operation_name == "GetBucketLocation":
+    if operation_name == 'GetBucketLocation':
         builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
     # All situations where the bucket name is an ARN are not compatible
     # with path style addressing.
-    elif bucket_name:
-        arn_parser = ArnParser()
-        if ':' in bucket_name:
-            try:
-                arn_parser.parse_arn(bucket_name)
-                builtins[
-                    EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE
-                ] = False
-            except InvalidArnException:
-                pass
+    elif bucket_is_arn:
+        builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = False
+
+    if (
+        request_context.get('is_presign_request')
+        and request_context.get('use_global_endpoint')
+        and not builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE]
+        and not bucket_is_arn
+    ):
+        builtins[EndpointResolverBuiltins.AWS_REGION] = 'aws-global'
+        builtins[EndpointResolverBuiltins.AWS_S3_USE_GLOBAL_ENDPOINT] = True
 
 
 # This is a list of (event_name, handler).

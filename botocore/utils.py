@@ -1723,7 +1723,7 @@ class ArnParser:
 
     @staticmethod
     def is_arn(value):
-        if ':' not in value:
+        if not isinstance(value, str) or not value.startswith('arn:'):
             return False
         arn_parser = ArnParser()
         try:

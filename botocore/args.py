@@ -176,6 +176,11 @@ class ClientArgsCreator:
             # rulesets of services other than S3 may require client context
             # parameters.
             client_context = s3_config_raw if service_name_raw == 's3' else {}
+            sig_version = (
+                client_config.signature_version
+                if client_config is not None
+                else None
+            )
             endpoint_resolver_v2 = EndpointResolverv2(
                 endpoint_ruleset_data=endpoints_ruleset_data,
                 partition_data=partition_data,
@@ -184,6 +189,7 @@ class ClientArgsCreator:
                 client_context=client_context,
                 event_emitter=event_emitter,
                 use_ssl=is_secure,
+                requested_auth_scheme=sig_version,
             )
 
         return {

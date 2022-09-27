@@ -462,6 +462,7 @@ class EndpointResolverv2:
         client_context,
         event_emitter,
         use_ssl=True,
+        requested_auth_scheme=None,
     ):
         self._provider = EndpointProvider(
             ruleset_data=endpoint_ruleset_data,
@@ -473,6 +474,7 @@ class EndpointResolverv2:
         self._client_context = client_context
         self._event_emitter = event_emitter
         self._use_ssl = use_ssl
+        self._requested_auth_scheme = requested_auth_scheme
         self._instance_cache = {}
 
     def construct_endpoint(

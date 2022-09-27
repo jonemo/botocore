@@ -23,6 +23,7 @@ from enum import Enum
 
 from botocore import xform_name
 from botocore.auth import AUTH_TYPE_MAPS, HAS_CRT
+from botocore.crt import CRT_SUPPORTED_AUTH_TYPES
 from botocore.endpoint_provider import EndpointProvider
 from botocore.exceptions import (
     EndpointProviderError,
@@ -699,16 +700,15 @@ class EndpointResolverv2:
             # If an authSchemes list is present in the Endpoint object but none
             # of the entries are supported, raise an exception. (However, if
             # authSchemes is not present, use the service's default auth type.)
-            fixable_with_awscrt = False
+            fixable_with_crt = False
             auth_type_options = [scheme['name'] for scheme in auth_schemes]
             if not HAS_CRT:
-                from botocore.crt.auth import CRT_AUTH_TYPE_MAPS
+                fixable_with_crt = any(
+                    scheme in CRT_SUPPORTED_AUTH_TYPES
+                    for scheme in auth_type_options
+                )
 
-                for auth_type in auth_type_options:
-                    if auth_type in CRT_AUTH_TYPE_MAPS:
-                        fixable_with_awscrt = True
-
-            if fixable_with_awscrt:
+            if fixable_with_crt:
                 raise MissingDependencyException(
                     msg='This operation requires an additional dependency. '
                     'Use pip install botocore[crt] before proceeding.'

@@ -543,10 +543,10 @@ class EndpointResolverv2:
         """
         provider_params = {}
         # Builtin values can be customized for each operation by hooks
-        # subscribing to the ``before-endpoint-resolution.*`` event. This event
-        # is only fired once per operation and only if at least one builtin
-        # parameter is needed by the ruleset.
-        customized_builtins = None
+        # subscribing to the ``before-endpoint-resolution.*`` event.
+        customized_builtins = self._get_customized_builtins(
+            operation_name, call_args, request_context
+        )
         for param_name, param_def in self._param_definitions.items():
             param_val = self._resolve_param_from_context(
                 param_name=param_name,
@@ -554,10 +554,6 @@ class EndpointResolverv2:
                 call_args=call_args,
             )
             if param_val is None and param_def.built_in is not None:
-                if customized_builtins is None:
-                    customized_builtins = self._get_customized_builtins(
-                        operation_name, call_args, request_context
-                    )
                 param_val = self._resolve_param_as_builtin(
                     builtin_name=param_def.built_in,
                     builtins=customized_builtins,

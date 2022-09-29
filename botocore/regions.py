@@ -28,7 +28,6 @@ from botocore.endpoint_provider import EndpointProvider
 from botocore.exceptions import (
     EndpointProviderError,
     EndpointVariantError,
-    FailedEndpointProviderParameterResolution,
     MissingDependencyException,
     NoRegionError,
     ParamValidationError,
@@ -536,10 +535,6 @@ class EndpointResolverv2:
         2. Operation-specific dynamic context values from API parameters
         3. Client-specific context parameters
         4. Built-in values such as region, FIPS usage, ...
-        5. The parameter's default value, if defined
-
-        If no value is found and the parameter is required,
-        FailedEndpointProviderParameterResolution is raised.
         """
         provider_params = {}
         # Builtin values can be customized for each operation by hooks
@@ -558,15 +553,8 @@ class EndpointResolverv2:
                     builtin_name=param_def.built_in,
                     builtins=customized_builtins,
                 )
-
             if param_val is not None:
                 provider_params[param_name] = param_val
-            elif param_def.default is not None:
-                provider_params[param_name] = param_def.default
-            elif param_def.required:
-                raise FailedEndpointProviderParameterResolution(
-                    f"Cannot find value for parameter {param_name}"
-                )
 
         return provider_params
 
@@ -606,7 +594,7 @@ class EndpointResolverv2:
     def _resolve_param_as_builtin(self, builtin_name, builtins):
         if builtin_name not in EndpointResolverBuiltins.__members__.values():
             raise UnknownEndpointResolutionBuiltInName(name=builtin_name)
-        return builtins[builtin_name]
+        return builtins.get(builtin_name)
 
     @instance_cache
     def _get_static_context_params(self, operation_name):

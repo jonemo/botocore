@@ -595,8 +595,8 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
             config=Config(s3={"use_arn_region": False}),
         )
         self.http_stubber.add_response()
-        self.client.list_objects(Bucket=accesspoint_arn)
-        self.assert_signing_region(self.http_stubber.requests[0], "us-east-1")
+        with self.assertRaises(UnsupportedS3AccesspointConfigurationError):
+            self.client.list_objects(Bucket=accesspoint_arn)
 
     def test_presign_signs_with_arn_region(self):
         accesspoint_arn = (
@@ -620,10 +620,10 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
                 signature_version="s3v4", s3={"use_arn_region": False}
             ),
         )
-        url = self.client.generate_presigned_url(
-            "get_object", {"Bucket": accesspoint_arn, "Key": "mykey"}
-        )
-        self.assert_signing_region_in_url(url, "us-east-1")
+        with self.assertRaises(UnsupportedS3AccesspointConfigurationError):
+            self.client.generate_presigned_url(
+                "get_object", {"Bucket": accesspoint_arn, "Key": "mykey"}
+            )
 
     def test_copy_source_str_with_accesspoint_arn(self):
         copy_source = (
@@ -1956,7 +1956,7 @@ class TestGeneratePresigned(BaseS3OperationTest):
         )
         expected_exception = UnsupportedS3ConfigurationError
         with self.assertRaisesRegex(
-            expected_exception, "S3 Accelerate does not have any FIPS"
+            expected_exception, "Accelerate cannot be used with FIPS"
         ):
             client.generate_presigned_url(
                 ClientMethod="get_object",
@@ -3374,7 +3374,7 @@ def _addressing_for_presigned_url_test_cases():
 
     # A region that we don't know about.
     yield dict(
-        region="us-west-50",
+        region="boto-west-1",
         bucket="bucket",
         key="key",
         signature_version=None,

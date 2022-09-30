@@ -702,16 +702,6 @@ def generate_presigned_url(
     prepare_request_dict(
         request_dict, endpoint_url=endpoint_url, context=context
     )
-    self.meta.events.emit_until_response(
-        'before-call.{service_id}.{operation_name}'.format(
-            service_id=self._service_model.service_id.hyphenize(),
-            operation_name=operation_name,
-        ),
-        model=operation_model,
-        params=request_dict,
-        request_signer=request_signer,
-        context=context,
-    )
 
     # Generate the presigned url.
     return request_signer.generate_presigned_url(

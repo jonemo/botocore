@@ -1023,47 +1023,49 @@ def add_retry_headers(request, **kwargs):
     headers['amz-sdk-request'] = '; '.join(sdk_request_headers)
 
 
-def fix_s3_path(model, params, **kwargs):
-    """Fixes correctly assembled but invalid S3 URLs
+def remove_bucket_from_url_paths_from_model(params, model, context, **kwargs):
+    """Strips leading `{Bucket}/` from any operations that have it.
 
-    A pair of correctly resolved S3 endpoint and path duplicates the bucket
-    name: For virtual addressing mode, the endpoint is `https://bucketname...`.
-    For path addressing mode, the endpoint is `https://.../bucketname`. In both
-    cases, the path is `/bucketname/objectkey`.
+    This change is applied to the operation model during the first time the
+    operation is invoked and then stays in effect for the lifetime of the
+    client object.
 
-    This function modifies the `url` and `url_path` fields of a request dict to
-    remove the duplication and make the URLs valid. The request dict is
-    modified in place.
+    When the ruleset based endpoint resolver is in effect, both the endpoint
+    ruleset _and_ the service model place the bucket name in the final URL.
+    The result is an invalid URL. This handler modifies the operation model to
+    no longer place the bucket name. Previous versions of botocore fixed the
+    URL after the fact when necessary. Since the introduction of ruleset based
+    endpoint resolution, the problem exists in _all_ URLs that contain a bucket
+    name and can therefore be addressed before the URL gets assembled.
     """
     if model.service_model.service_name != 's3':
         return
-    if not (
-        model.http['requestUri'] == '/{Bucket}'
-        or model.http['requestUri'].startswith('/{Bucket}/')
-        or model.http['requestUri'].startswith('/{Bucket}?')
-    ):
-        return
-    url_parts = urlsplit(params['url'])
-    # Find the first slash in the path after the leading slash.
-    slash_position = 1 + url_parts.path[1:].find('/')
-    if slash_position == 0:
-        # If no slash was found, the path contained only the bucket, only once
-        url_path_without_bucket = '/'
-    else:
-        url_path_without_bucket = url_parts.path[slash_position:]
+    if model.http['requestUri'].startswith('/{Bucket}'):
+        model.http['requestUri'] = model.http['requestUri'][9:]
 
-    params['url'] = urlunsplit(
-        (
-            url_parts.scheme,
-            url_parts.netloc,
-            url_path_without_bucket,
-            url_parts.query,
-            url_parts.fragment,
-        )
+
+def remove_accid_host_prefix_from_model(params, model, context, **kwargs):
+    """Removes the `{AccountId}.` prefix from the operation model.
+
+    This change is applied to the operation model during the first time the
+    operation is invoked and then stays in effect for the lifetime of the
+    client object.
+
+    When the ruleset based endpoint resolver is in effect, both the endpoint
+    ruleset _and_ the service model place the {AccountId}. prefix the URL.
+    The result is an invalid endpoint. This handler modifies the operation
+    model to remove the `endpoint.hostPrefix` field while leaving the
+    `RequiresAccountId` static context parameter in place.
+    """
+    if model.service_model.service_name != 's3control':
+        return
+    has_ctx_param = any(
+        True
+        for ctx_param in model.static_context_parameters
+        if ctx_param.name == 'RequiresAccountId' and ctx_param.value is True
     )
-    logger.debug(
-        'Removed duplicate bucket name from S3 URL: %s', params['url']
-    )
+    if model.endpoint.get('hostPrefix') == '{AccountId}.' and has_ctx_param:
+        del model.endpoint['hostPrefix']
 
 
 def customize_endpoint_resolver_builtins(
@@ -1087,6 +1089,8 @@ def customize_endpoint_resolver_builtins(
     # with path style addressing.
     elif bucket_is_arn:
         builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = False
+    # elif request_context.get('is_presign_request'):
+    #     builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
 
     if (
         request_context.get('is_presign_request')
@@ -1128,6 +1132,7 @@ BUILTIN_HANDLERS = [
     ('after-call.s3.GetBucketLocation', parse_get_bucket_location),
     ('before-parameter-build', generate_idempotent_uuid),
     ('before-parameter-build.s3', validate_bucket_name),
+    ('before-parameter-build.s3', remove_bucket_from_url_paths_from_model),
     (
         'before-parameter-build.s3.ListObjects',
         set_list_objects_encoding_type_url,
@@ -1148,12 +1153,12 @@ BUILTIN_HANDLERS = [
         'before-parameter-build.s3.CreateMultipartUpload',
         validate_ascii_metadata,
     ),
+    ('before-parameter-build.s3-control', remove_accid_host_prefix_from_model),
     ('docs.*.s3.CopyObject.complete-section', document_copy_source_form),
     ('docs.*.s3.UploadPartCopy.complete-section', document_copy_source_form),
     ('before-endpoint-resolution.s3', customize_endpoint_resolver_builtins),
     ('before-call', add_recursion_detection_header),
     ('before-call.s3', add_expect_header),
-    ('before-call.s3', fix_s3_path),
     ('before-call.glacier', add_glacier_version),
     ('before-call.apigateway', add_accept_header),
     ('before-call.s3.PutObject', conditionally_calculate_md5),

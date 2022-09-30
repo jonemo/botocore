@@ -170,7 +170,10 @@ class Serializer:
 
     def _expand_host_prefix(self, parameters, operation_model):
         operation_endpoint = operation_model.endpoint
-        if operation_endpoint is None:
+        if (
+            operation_endpoint is None
+            or 'hostPrefix' not in operation_endpoint
+        ):
             return None
 
         host_prefix_expression = operation_endpoint['hostPrefix']

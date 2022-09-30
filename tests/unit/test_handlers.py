@@ -1215,14 +1215,18 @@ class TestSSEMD5(BaseMD5Test):
                 'SSECustomerKey': b'bar',
                 'SSECustomerAlgorithm': 'AES256',
             }
-            self.session.emit(event, params=params, model=mock.MagicMock())
+            self.session.emit(
+                event, params=params, model=mock.MagicMock(), context={}
+            )
             self.assertEqual(params['SSECustomerKey'], 'YmFy')
             self.assertEqual(params['SSECustomerKeyMD5'], 'Zm9v')
 
     def test_sse_params_as_str(self):
         event = 'before-parameter-build.s3.PutObject'
         params = {'SSECustomerKey': 'bar', 'SSECustomerAlgorithm': 'AES256'}
-        self.session.emit(event, params=params, model=mock.MagicMock())
+        self.session.emit(
+            event, params=params, model=mock.MagicMock(), context={}
+        )
         self.assertEqual(params['SSECustomerKey'], 'YmFy')
         self.assertEqual(params['SSECustomerKeyMD5'], 'Zm9v')
 
@@ -1233,7 +1237,9 @@ class TestSSEMD5(BaseMD5Test):
                 'CopySourceSSECustomerKey': b'bar',
                 'CopySourceSSECustomerAlgorithm': 'AES256',
             }
-            self.session.emit(event, params=params, model=mock.MagicMock())
+            self.session.emit(
+                event, params=params, model=mock.MagicMock(), context={}
+            )
             self.assertEqual(params['CopySourceSSECustomerKey'], 'YmFy')
             self.assertEqual(params['CopySourceSSECustomerKeyMD5'], 'Zm9v')
 
@@ -1243,7 +1249,9 @@ class TestSSEMD5(BaseMD5Test):
             'CopySourceSSECustomerKey': 'bar',
             'CopySourceSSECustomerAlgorithm': 'AES256',
         }
-        self.session.emit(event, params=params, model=mock.MagicMock())
+        self.session.emit(
+            event, params=params, model=mock.MagicMock(), context={}
+        )
         self.assertEqual(params['CopySourceSSECustomerKey'], 'YmFy')
         self.assertEqual(params['CopySourceSSECustomerKeyMD5'], 'Zm9v')
 

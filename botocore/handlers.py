@@ -90,7 +90,7 @@ _ACCESSPOINT_ARN = (
 )
 _OUTPOST_ARN = (
     r'^arn:(aws).*:s3-outposts:[a-z\-0-9]+:[0-9]{12}:outpost[/:]'
-    r'[a-zA-Z0-9\-]{1,63}[/:]accesspoint[/:][a-zA-Z0-9\-]{1,63}$'
+    r'[a-zA-Z0-9\-]{1,63}[/:](bucket|accesspoint)[/:][a-zA-Z0-9\-]{1,63}$'
 )
 VALID_S3_ARN = re.compile('|'.join([_ACCESSPOINT_ARN, _OUTPOST_ARN]))
 VERSION_ID_SUFFIX = re.compile(r'\?versionId=[^\s]+$')
@@ -1064,7 +1064,11 @@ def remove_accid_host_prefix_from_model(params, model, context, **kwargs):
         for ctx_param in model.static_context_parameters
         if ctx_param.name == 'RequiresAccountId' and ctx_param.value is True
     )
-    if model.endpoint.get('hostPrefix') == '{AccountId}.' and has_ctx_param:
+    if (
+        model.endpoint is not None
+        and model.endpoint.get('hostPrefix') == '{AccountId}.'
+        and has_ctx_param
+    ):
         del model.endpoint['hostPrefix']
 
 

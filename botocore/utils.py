@@ -2453,7 +2453,7 @@ class S3ControlArnParamHandler:
 
     def register(self, event_emitter):
         event_emitter.register(
-            'before-parameter-build.s3-control',
+            'before-endpoint-resolution.s3-control',
             self.handle_arn,
         )
 
@@ -2507,6 +2507,8 @@ class S3ControlArnParamHandler:
         arn_details = self._get_arn_details_from_param(params, 'Name')
         if arn_details is None:
             return
+        self._raise_for_fips_pseudo_region(arn_details)
+        self._raise_for_accelerate_endpoint(context)
         if self._is_outpost_accesspoint(arn_details):
             self._store_outpost_accesspoint(params, context, arn_details)
         else:
@@ -2527,16 +2529,13 @@ class S3ControlArnParamHandler:
 
     def _store_outpost_accesspoint(self, params, context, arn_details):
         self._override_account_id_param(params, arn_details)
-        accesspoint_name = arn_details['resources'][3]
-        params['Name'] = accesspoint_name
-        arn_details['accesspoint_name'] = accesspoint_name
-        arn_details['outpost_name'] = arn_details['resources'][1]
-        context['arn_details'] = arn_details
 
     def _handle_bucket_param(self, params, model, context):
         arn_details = self._get_arn_details_from_param(params, 'Bucket')
         if arn_details is None:
             return
+        self._raise_for_fips_pseudo_region(arn_details)
+        self._raise_for_accelerate_endpoint(context)
         if self._is_outpost_bucket(arn_details):
             self._store_outpost_bucket(params, context, arn_details)
         else:
@@ -2559,11 +2558,22 @@ class S3ControlArnParamHandler:
 
     def _store_outpost_bucket(self, params, context, arn_details):
         self._override_account_id_param(params, arn_details)
-        bucket_name = arn_details['resources'][3]
-        params['Bucket'] = bucket_name
-        arn_details['bucket_name'] = bucket_name
-        arn_details['outpost_name'] = arn_details['resources'][1]
-        context['arn_details'] = arn_details
+
+    def _raise_for_fips_pseudo_region(self, arn_details):
+        # FIPS pseudo region names cannot be used in ARNs
+        arn_region = arn_details['region']
+        if arn_region.startswith('fips-') or arn_region.endswith('fips-'):
+            raise UnsupportedS3ControlArnError(
+                arn=arn_details['original'],
+                msg='Invalid ARN, FIPS region not allowed in ARN.',
+            )
+
+    def _raise_for_accelerate_endpoint(self, context):
+        s3_config = context['client_config'].s3 or {}
+        if s3_config.get('use_accelerate_endpoint'):
+            raise UnsupportedS3ControlConfigurationError(
+                msg='S3 control client does not support accelerate endpoints',
+            )
 
 
 class ContainerMetadataFetcher:

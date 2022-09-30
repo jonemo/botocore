@@ -1537,7 +1537,7 @@ class TestS3RegionRedirector(unittest.TestCase):
         )
         params = {'Bucket': 'foo'}
         builtins = {'AWS::Region': 'old-region-1'}
-        self.redirector.redirect_from_cache(builtins, 'FooOp', params)
+        self.redirector.redirect_from_cache(builtins, params)
         self.assertEqual(builtins.get('AWS::Region'), 'new-region-1')
 
     def test_only_changes_context_if_bucket_in_cache(self):
@@ -1547,7 +1547,7 @@ class TestS3RegionRedirector(unittest.TestCase):
         )
         params = {'Bucket': 'bar'}
         builtins = {'AWS::Region': 'old-region-1'}
-        self.redirector.redirect_from_cache(builtins, 'FooOp', params)
+        self.redirector.redirect_from_cache(builtins, params)
         self.assertEqual(builtins.get('AWS::Region'), 'old-region-1')
 
     def test_redirect_from_error(self):

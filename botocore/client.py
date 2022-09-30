@@ -361,10 +361,7 @@ class ClientCreator:
             return
         S3RegionRedirector(None, client).register()
 
-    def _register_s3_control_events(
-        self,
-        client,
-    ):
+    def _register_s3_control_events(self, client):
         if client.meta.service_model.service_name != 's3control':
             return
         S3ControlArnParamHandler().register(client.meta.events)
@@ -896,8 +893,7 @@ class BaseClient:
             additional_headers = {}
         else:
             endpoint_info = self._endpoint_resolver_v2.construct_endpoint(
-                service_name=service_name,
-                operation_name=operation_name,
+                operation_model=operation_model,
                 call_args=api_params,
                 request_context=request_context,
             )

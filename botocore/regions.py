@@ -479,20 +479,15 @@ class EndpointResolverv2:
 
     def construct_endpoint(
         self,
-        service_name,
-        region_name=None,
-        operation_name=None,
-        call_args=None,
-        request_context=None,
+        operation_model,
+        call_args,
+        request_context,
     ):
         """Invokes the provider with params defined in the services ruleset
 
         Named to implement the BaseEndpointResolver interface, but does not
         actually return an Endpoint object, instead a dict with endpoint info.
         """
-        if operation_name is None:
-            raise ValueError("operation_name argument is required")
-
         if call_args is None:
             call_args = {}
 
@@ -500,7 +495,7 @@ class EndpointResolverv2:
             request_context = {}
 
         provider_params = self._get_provider_params(
-            operation_name, call_args, request_context
+            operation_model, call_args, request_context
         )
         LOG.debug(
             'Calling endpoint provider with parameters: %s' % provider_params
@@ -527,7 +522,9 @@ class EndpointResolverv2:
 
         return provider_result
 
-    def _get_provider_params(self, operation_name, call_args, request_context):
+    def _get_provider_params(
+        self, operation_model, call_args, request_context
+    ):
         """Resolve a value for each parameter defined in the service's ruleset
 
         The resolution order for parameter values is:
@@ -540,12 +537,12 @@ class EndpointResolverv2:
         # Builtin values can be customized for each operation by hooks
         # subscribing to the ``before-endpoint-resolution.*`` event.
         customized_builtins = self._get_customized_builtins(
-            operation_name, call_args, request_context
+            operation_model, call_args, request_context
         )
         for param_name, param_def in self._param_definitions.items():
             param_val = self._resolve_param_from_context(
                 param_name=param_name,
-                op_name=operation_name,
+                operation_model=operation_model,
                 call_args=call_args,
             )
             if param_val is None and param_def.built_in is not None:
@@ -558,29 +555,31 @@ class EndpointResolverv2:
 
         return provider_params
 
-    def _resolve_param_from_context(self, param_name, op_name, call_args):
+    def _resolve_param_from_context(
+        self, param_name, operation_model, call_args
+    ):
         static = self._resolve_param_as_static_context_param(
-            param_name, op_name
+            param_name, operation_model
         )
         if static is not None:
             return static
         dynamic = self._resolve_param_as_dynamic_context_param(
-            param_name, op_name, call_args
+            param_name, operation_model, call_args
         )
         if dynamic is not None:
             return dynamic
         return self._resolve_param_as_client_context_param(param_name)
 
     def _resolve_param_as_static_context_param(
-        self, param_name, operation_name
+        self, param_name, operation_model
     ):
-        static_ctx_params = self._get_static_context_params(operation_name)
+        static_ctx_params = self._get_static_context_params(operation_model)
         return static_ctx_params.get(param_name)
 
     def _resolve_param_as_dynamic_context_param(
-        self, param_name, operation_name, call_args
+        self, param_name, operation_model, call_args
     ):
-        dynamic_ctx_params = self._get_dynamic_context_params(operation_name)
+        dynamic_ctx_params = self._get_dynamic_context_params(operation_model)
         if param_name in dynamic_ctx_params:
             member_name = dynamic_ctx_params[param_name]
             return call_args.get(member_name)
@@ -597,21 +596,19 @@ class EndpointResolverv2:
         return builtins.get(builtin_name)
 
     @instance_cache
-    def _get_static_context_params(self, operation_name):
+    def _get_static_context_params(self, operation_model):
         """Mapping of param names to static param value for an operation"""
-        op_model = self._service_model.operation_model(operation_name)
         return {
             param.name: param.value
-            for param in op_model.static_context_parameters
+            for param in operation_model.static_context_parameters
         }
 
     @instance_cache
-    def _get_dynamic_context_params(self, operation_name):
+    def _get_dynamic_context_params(self, operation_model):
         """Mapping of param names to member names for an operation"""
-        op_model = self._service_model.operation_model(operation_name)
         return {
             param.name: param.member_name
-            for param in op_model.context_parameters
+            for param in operation_model.context_parameters
         }
 
     @instance_cache
@@ -623,7 +620,7 @@ class EndpointResolverv2:
         }
 
     def _get_customized_builtins(
-        self, operation_name, call_args, request_context
+        self, operation_model, call_args, request_context
     ):
         service_id = self._service_model.service_id.hyphenize()
         customized_builtins = copy.copy(self._builtins)
@@ -631,9 +628,9 @@ class EndpointResolverv2:
         self._event_emitter.emit(
             'before-endpoint-resolution.%s' % service_id,
             builtins=customized_builtins,
-            operation_name=operation_name,
+            model=operation_model,
             params=call_args,
-            request_context=request_context,
+            context=request_context,
         )
         return customized_builtins
 

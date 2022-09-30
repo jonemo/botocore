@@ -666,8 +666,7 @@ def generate_presigned_url(
         endpoint_url = self.meta.endpoint_url
     else:
         endpoint_info = self._endpoint_resolver_v2.construct_endpoint(
-            service_name=self._service_model.service_name,
-            operation_name=operation_name,
+            operation_model=operation_model,
             call_args=params,
             request_context=context,
         )

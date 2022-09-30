@@ -1069,7 +1069,7 @@ def remove_accid_host_prefix_from_model(params, model, context, **kwargs):
 
 
 def customize_endpoint_resolver_builtins(
-    builtins, operation_name, params, request_context, **kwargs
+    builtins, model, params, context, **kwargs
 ):
     """Modify builtin parameter values for endpoint resolver
 
@@ -1083,7 +1083,7 @@ def customize_endpoint_resolver_builtins(
     # when the signing region of a sigv4 request is not the bucket's
     # region (which is likely unknown by the user of GetBucketLocation).
     # Avoid this by always using path-style addressing.
-    if operation_name == 'GetBucketLocation':
+    if model.name == 'GetBucketLocation':
         builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
     # All situations where the bucket name is an ARN are not compatible
     # with path style addressing.
@@ -1093,8 +1093,8 @@ def customize_endpoint_resolver_builtins(
     #     builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
 
     if (
-        request_context.get('is_presign_request')
-        and request_context.get('use_global_endpoint')
+        context.get('is_presign_request')
+        and context.get('use_global_endpoint')
         and not builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE]
         and not bucket_is_arn
     ):

@@ -1613,9 +1613,9 @@ class S3RegionRedirector:
         # the new URL, auth scheme, and signing context.
         ep_resolver = self._client._endpoint_resolver_v2
         ep_info = self._client._endpoint_resolver_v2.construct_endpoint(
-            service_name='s3',
-            operation_name=operation.name,
+            operation_model=operation,
             call_args=request_dict['context']['s3_redirect']['params'],
+            request_context=request_dict['context'],
         )
         request_dict['url'] = self.set_request_url(
             request_dict['url'], ep_info.url
@@ -1677,7 +1677,7 @@ class S3RegionRedirector:
         """
         return _get_new_endpoint(old_url, new_endpoint, False)
 
-    def redirect_from_cache(self, builtins, operation_name, params, **kwargs):
+    def redirect_from_cache(self, builtins, params, **kwargs):
         """
         If a bucket name has been redirected before, it is in the cache. This
         handler will update the AWS::Region endpoint resolver builtin param

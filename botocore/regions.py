@@ -28,6 +28,7 @@ from botocore.endpoint_provider import EndpointProvider
 from botocore.exceptions import (
     EndpointProviderError,
     EndpointVariantError,
+    InvalidHostLabelError,
     MissingDependencyException,
     NoRegionError,
     ParamValidationError,
@@ -706,10 +707,22 @@ class EndpointResolverv2:
         msg = ruleset_exception.kwargs.get('msg')
         if msg is None:
             return
-        service_name = self._service_model.service_name
 
+        if msg.startswith('Invalid region in ARN: '):
+            # Example message:
+            # "Invalid region in ARN: `us-we$t-2` (invalid DNS name)"
+            try:
+                label = msg.split('`')[1]
+            except IndexError:
+                label = msg
+            return InvalidHostLabelError(label=label)
+
+        service_name = self._service_model.service_name
         if service_name == 's3':
-            if msg == 'S3 Object Lambda does not support S3 Accelerate':
+            if (
+                msg == 'S3 Object Lambda does not support S3 Accelerate'
+                or msg == 'Accelerate cannot be used with FIPS'
+            ):
                 return UnsupportedS3ConfigurationError(msg=msg)
             if (
                 msg.startswith('S3 Outposts does not support')
@@ -730,4 +743,6 @@ class EndpointResolverv2:
                 'Client was configured for partition'
             ):
                 return UnsupportedS3ControlConfigurationError(msg=msg)
+            if msg == "AccountId is required but not set":
+                return ParamValidationError(report=msg)
         return None

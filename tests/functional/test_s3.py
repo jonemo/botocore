@@ -1071,26 +1071,6 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
             self._assert_mrap_config_failure(mrap_arn, region, config=config)
 
     @requires_crt()
-    def test_mrap_arn_with_custom_endpoint(self):
-        mrap_arn = "arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap"
-        endpoint_url = "https://test.endpoint.amazonaws.com"
-        expected = "mfzwi23gnjvgw.mrap.test.endpoint.amazonaws.com"
-        self._assert_mrap_endpoint(
-            mrap_arn, "us-east-1", expected, endpoint_url=endpoint_url
-        )
-
-    @requires_crt()
-    def test_mrap_arn_with_vpc_endpoint(self):
-        mrap_arn = "arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap"
-        endpoint_url = "https://vpce-123-abc.vpce.s3-global.amazonaws.com"
-        expected = (
-            "mfzwi23gnjvgw.mrap.vpce-123-abc.vpce.s3-global.amazonaws.com"
-        )
-        self._assert_mrap_endpoint(
-            mrap_arn, "us-west-2", expected, endpoint_url=endpoint_url
-        )
-
-    @requires_crt()
     def test_mrap_arn_with_disable_config_enabled(self):
         mrap_arn = "arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap"
         config = Config(s3={"s3_disable_multiregion_access_points": True})

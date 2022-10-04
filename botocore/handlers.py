@@ -1093,8 +1093,6 @@ def customize_endpoint_resolver_builtins(
     # with path style addressing.
     elif bucket_is_arn:
         builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = False
-    # elif request_context.get('is_presign_request'):
-    #     builtins[EndpointResolverBuiltins.AWS_S3_FORCE_PATH_STYLE] = True
 
     if (
         context.get('is_presign_request')

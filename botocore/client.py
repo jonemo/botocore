@@ -155,8 +155,8 @@ class ClientCreator:
         )
         service_client = cls(**client_args)
         self._register_retries(service_client)
-        self._register_s3_events(client=service_client)
-        self._register_s3_control_events(client=service_client)
+        self._register_s3_events(service_client, client_config, scoped_config)
+        self._register_s3_control_events(service_client)
 
         if client_args['endpoint_resolver_v2'] is None:
             # When using the legacy endpoint resolver, several event handlers
@@ -356,10 +356,13 @@ class ClientCreator:
             endpoint_url=endpoint_url,
         ).register(client.meta.events)
 
-    def _register_s3_events(self, client):
+    def _register_s3_events(self, client, client_config, scoped_config):
         if client.meta.service_model.service_name != 's3':
             return
         S3RegionRedirector(None, client).register()
+        self._set_s3_presign_signature_version(
+            client.meta, client_config, scoped_config
+        )
 
     def _register_s3_control_events(self, client):
         if client.meta.service_model.service_name != 's3control':

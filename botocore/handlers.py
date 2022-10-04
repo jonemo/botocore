@@ -217,9 +217,8 @@ def set_operation_specific_signer(context, signing_name, **kwargs):
         if auth_type == 'v4-unsigned-body':
             context['payload_signing_enabled'] = False
 
-        # S3 has customized signers "s3v4" and "s3v4a" which implement the
-        # ``disableDoubleEncoding`` feature found in endpoints rule sets.
-        if context.get('signing', {}).get('disableDoubleEncoding'):
+        # s3 and s3-control have customized signers "s3v4" and "s3v4a".
+        if signing_name == 's3':
             signature_version = f's3{signature_version}'
 
         return signature_version

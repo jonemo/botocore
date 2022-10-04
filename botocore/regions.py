@@ -21,7 +21,7 @@ import logging
 import re
 from enum import Enum
 
-from botocore import xform_name
+from botocore import UNSIGNED, xform_name
 from botocore.auth import AUTH_TYPE_MAPS, HAS_CRT
 from botocore.crt import CRT_SUPPORTED_AUTH_TYPES
 from botocore.endpoint_provider import EndpointProvider
@@ -651,6 +651,16 @@ class EndpointResolverv2:
         if not isinstance(auth_schemes, list) or len(auth_schemes) == 0:
             raise TypeError("auth_schemes must be a non-empty list.")
 
+        LOG.debug(
+            'Selecting from endpoint provider\'s list of auth schemes: %s. '
+            'User selected auth scheme is: "%s"',
+            ', '.join([f'"{s.get("name")}"' for s in auth_schemes]),
+            self._requested_auth_scheme,
+        )
+
+        if self._requested_auth_scheme == UNSIGNED:
+            return 'none', {}
+
         # normalize auth type names by removing any "sig" prefix
         def strip_sig(auth_name):
             return auth_name[3:] if auth_name.startswith('sig') else auth_name
@@ -677,6 +687,11 @@ class EndpointResolverv2:
                     scheme['disableDoubleEncoding']
                 )
 
+            LOG.debug(
+                'Selected auth type "%s" with signing context params: %s',
+                scheme['name'],
+                signing_context,
+            )
             return scheme['name'], signing_context
         else:
             # If an authSchemes list is present in the Endpoint object but none

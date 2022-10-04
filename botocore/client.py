@@ -909,24 +909,12 @@ class BaseClient:
             # If authSchemes is present, overwrite default auth type and
             # signing context derived from service model.
             auth_schemes = endpoint_info.properties.get('authSchemes')
-            if (
-                auth_schemes is not None
-                and self._endpoint_resolver_v2._requested_auth_scheme is None
-            ):
-                logger.debug(
-                    'Endpoing provider returnd list of auth schemes: %s',
-                    ', '.join([s.get('name') for s in auth_schemes]),
-                )
+            if auth_schemes is not None:
                 (
                     auth_type,
                     signing_context,
                 ) = self._endpoint_resolver_v2.auth_schemes_to_signing_context(
                     auth_schemes
-                )
-                logger.debug(
-                    'Selected auth type "%s" with signing context params: %s',
-                    auth_type,
-                    signing_context,
                 )
                 request_context['auth_type'] = auth_type
                 if 'signing' in request_context:

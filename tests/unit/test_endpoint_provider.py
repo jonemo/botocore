@@ -32,7 +32,7 @@ from botocore.exceptions import (
     UnknownSignatureVersionError,
 )
 from botocore.loaders import Loader
-from botocore.regions import EndpointResolverv2
+from botocore.regions import EndpointRulesetResolver
 
 REGION_TEMPLATE = "{Region}"
 REGION_REF = {"ref": "Region"}
@@ -352,7 +352,7 @@ def test_ruleset_unknown_parameter_type_raises(partitions):
 
 @pytest.fixture()
 def empty_resolver():
-    return EndpointResolverv2(
+    return EndpointRulesetResolver(
         endpoint_ruleset_data={
             'version': '1.0',
             'parameters': {},

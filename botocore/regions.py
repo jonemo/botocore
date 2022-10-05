@@ -451,7 +451,7 @@ class EndpointResolverBuiltins(str, Enum):
     SDK_ENDPOINT = "SDK::Endpoint"
 
 
-class EndpointResolverv2:
+class EndpointRulesetResolver:
     """Resolves endpoints using a service's endpoint ruleset"""
 
     def __init__(

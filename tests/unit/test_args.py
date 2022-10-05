@@ -493,8 +493,8 @@ class TestCreateClientArgs(unittest.TestCase):
         )['client_config']
         self.assertEqual(config.retries['mode'], 'standard')
 
-    def test_creates_endpoint_resolver_v2_if_given_data(self):
-        with mock.patch('botocore.args.EndpointResolverv2') as m:
+    def test_creates_ruleset_resolver_if_given_data(self):
+        with mock.patch('botocore.args.EndpointRulesetResolver') as m:
             self.call_get_client_args(
                 service_model=self._get_service_model('s3'),
                 endpoints_ruleset_data={
@@ -505,8 +505,8 @@ class TestCreateClientArgs(unittest.TestCase):
             )
             m.assert_called_once()
 
-    def test_doesnt_create_endpoint_resolver_v2_if_not_given_data(self):
-        with mock.patch('botocore.args.EndpointResolverv2') as m:
+    def test_doesnt_create_ruleset_resolver_if_not_given_data(self):
+        with mock.patch('botocore.args.EndpointRulesetResolver') as m:
             self.call_get_client_args(
                 service_model=self._get_service_model('s3'),
                 endpoints_ruleset_data=None,

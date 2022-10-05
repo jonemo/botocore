@@ -158,7 +158,7 @@ class ClientCreator:
         self._register_s3_events(service_client, client_config, scoped_config)
         self._register_s3_control_events(service_client)
 
-        if client_args['endpoint_resolver_v2'] is None:
+        if client_args['endpoint_ruleset_resolver'] is None:
             # When using the legacy endpoint resolver, several event handlers
             # modify endpoint and request context.
             self._register_eventbridge_events(
@@ -817,11 +817,11 @@ class BaseClient:
         client_config,
         partition,
         exceptions_factory,
-        endpoint_resolver_v2,
+        endpoint_ruleset_resolver,
     ):
         self._serializer = serializer
         self._endpoint = endpoint
-        self._endpoint_resolver_v2 = endpoint_resolver_v2
+        self._ruleset_resolver = endpoint_ruleset_resolver
         self._response_parser = response_parser
         self._request_signer = request_signer
         self._cache = {}
@@ -891,11 +891,11 @@ class BaseClient:
             'auth_type': operation_model.auth_type,
         }
 
-        if self._endpoint_resolver_v2 is None:
+        if self._ruleset_resolver is None:
             endpoint_url = self.meta.endpoint_url
             additional_headers = {}
         else:
-            endpoint_info = self._endpoint_resolver_v2.construct_endpoint(
+            endpoint_info = self._ruleset_resolver.construct_endpoint(
                 operation_model=operation_model,
                 call_args=api_params,
                 request_context=request_context,
@@ -913,7 +913,7 @@ class BaseClient:
                 (
                     auth_type,
                     signing_context,
-                ) = self._endpoint_resolver_v2.auth_schemes_to_signing_context(
+                ) = self._ruleset_resolver.auth_schemes_to_signing_context(
                     auth_schemes
                 )
                 request_context['auth_type'] = auth_type

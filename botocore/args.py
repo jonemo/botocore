@@ -26,7 +26,7 @@ import botocore.serialize
 from botocore.config import Config
 from botocore.endpoint import EndpointCreator
 from botocore.regions import EndpointResolverBuiltins as EPRBuiltins
-from botocore.regions import EndpointResolverv2
+from botocore.regions import EndpointRulesetResolver
 from botocore.signers import RequestSigner
 from botocore.utils import ensure_boolean, is_s3_accelerate_url
 
@@ -146,10 +146,10 @@ class ClientArgsCreator:
         response_parser = botocore.parsers.create_parser(protocol)
 
         if endpoints_ruleset_data is None:
-            endpoint_resolver_v2 = None
+            ruleset_resolver = None
         else:
             # The legacy EndpointResolver is global to the session,
-            # EndpointResolverv2 is service-specific. builtins for
+            # EndpointRulesetResolver is service-specific. builtins for
             # EnpointResolverv2 must not be derived from the legacy endpoint
             # resolver's output, including final_args, s3_config, ...
             s3_config_raw = self.compute_s3_config(client_config) or {}
@@ -181,7 +181,7 @@ class ClientArgsCreator:
                 if client_config is not None
                 else None
             )
-            endpoint_resolver_v2 = EndpointResolverv2(
+            ruleset_resolver = EndpointRulesetResolver(
                 endpoint_ruleset_data=endpoints_ruleset_data,
                 partition_data=partition_data,
                 service_model=service_model,
@@ -203,7 +203,7 @@ class ClientArgsCreator:
             'client_config': new_config,
             'partition': partition,
             'exceptions_factory': self._exceptions_factory,
-            'endpoint_resolver_v2': endpoint_resolver_v2,
+            'endpoint_ruleset_resolver': ruleset_resolver,
         }
 
     def compute_client_args(
@@ -533,14 +533,14 @@ class ClientArgsCreator:
         client_endpoint_url,
         legacy_endpoint_url,
     ):
-        # EndpointResolverv2 rulesets may accept an "SDK::Endpoint" as input.
-        # If the endpoint_url argument of create_client() is set, it always
-        # takes priority.
+        # EndpointRulesetResolver rulesets may accept an "SDK::Endpoint" as
+        # input. If the endpoint_url argument of create_client() is set, it
+        # always takes priority.
         if client_endpoint_url:
             given_endpoint = client_endpoint_url
         # If an endpoints.json data file other than the one bundled within
         # the botocore/data directory is used, the output of legacy
-        # endpoint resolution is provided to EndpointResolverv2.
+        # endpoint resolution is provided to EndpointRulesetResolver.
         elif not endpoint_bridge.resolver_uses_builtin_data():
             given_endpoint = legacy_endpoint_url
         else:

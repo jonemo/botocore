@@ -662,10 +662,10 @@ def generate_presigned_url(
     if http_method is not None:
         request_dict['method'] = http_method
 
-    if self._endpoint_resolver_v2 is None:
+    if self._ruleset_resolver is None:
         endpoint_url = self.meta.endpoint_url
     else:
-        endpoint_info = self._endpoint_resolver_v2.construct_endpoint(
+        endpoint_info = self._ruleset_resolver.construct_endpoint(
             operation_model=operation_model,
             call_args=params,
             request_context=context,
@@ -686,7 +686,7 @@ def generate_presigned_url(
             (
                 auth_type,
                 signing_context,
-            ) = self._endpoint_resolver_v2.auth_schemes_to_signing_context(
+            ) = self._ruleset_resolver.auth_schemes_to_signing_context(
                 auth_schemes
             )
             context['auth_type'] = auth_type

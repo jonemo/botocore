@@ -46,7 +46,7 @@ from botocore.model import (
     ServiceModel,
     ShapeResolver,
 )
-from botocore.regions import EndpointResolverv2
+from botocore.regions import EndpointRulesetResolver
 from botocore.session import Session
 from botocore.utils import (
     ArgumentGenerator,
@@ -1477,7 +1477,7 @@ class TestDeepMerge(unittest.TestCase):
 class TestS3RegionRedirector(unittest.TestCase):
     def setUp(self):
         self.client = mock.Mock()
-        self.client._endpoint_resolver_v2 = EndpointResolverv2(
+        self.client._ruleset_resolver = EndpointRulesetResolver(
             endpoint_ruleset_data={
                 'version': '1.0',
                 'parameters': {},
@@ -1491,7 +1491,7 @@ class TestS3RegionRedirector(unittest.TestCase):
             use_ssl=True,
             requested_auth_scheme=None,
         )
-        self.client._endpoint_resolver_v2.construct_endpoint = mock.Mock(
+        self.client._ruleset_resolver.construct_endpoint = mock.Mock(
             return_value=RuleSetEndpoint(
                 url='https://new-endpoint.amazonaws.com',
                 properties={},
@@ -1578,7 +1578,7 @@ class TestS3RegionRedirector(unittest.TestCase):
             },
         )
 
-        self.client._endpoint_resolver_v2.construct_endpoint.return_value = (
+        self.client._ruleset_resolver.construct_endpoint.return_value = (
             RuleSetEndpoint(
                 url='https://eu-central-1.amazonaws.com/foo',
                 properties={

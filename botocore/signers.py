@@ -204,7 +204,16 @@ class RequestSigner:
         }
         suffix = signing_type_suffix_map.get(signing_type, '')
 
-        signature_version = self._signature_version
+        # operation specific signing context takes precedent over client-level
+        # defaults
+        signature_version = context.get('auth_type') or self._signature_version
+        signing_name = (
+            context.get('signing', {}).get('signing_name')
+            or self._signing_name
+        )
+        region_name = (
+            context.get('signing', {}).get('region') or self._region_name
+        )
         if (
             signature_version is not botocore.UNSIGNED
             and not signature_version.endswith(suffix)
@@ -215,8 +224,8 @@ class RequestSigner:
             'choose-signer.{}.{}'.format(
                 self._service_id.hyphenize(), operation_name
             ),
-            signing_name=self._signing_name,
-            region_name=self._region_name,
+            signing_name=signing_name,
+            region_name=region_name,
             signature_version=signature_version,
             context=context,
         )

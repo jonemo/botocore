@@ -416,7 +416,8 @@ class ClientCreator:
         """
         Returns the 's3' (sigv2) signer if presigning an s3 request. This is
         intended to be used to set the default signature version for the signer
-        to sigv2.
+        to sigv2. Situations where an asymmetric signature is required are the
+        exception, for example MRAP needs v4a.
 
         :type signature_version: str
         :param signature_version: The current client signature version.
@@ -426,9 +427,12 @@ class ClientCreator:
 
         :return: 's3' if the request is an s3 presign request, None otherwise
         """
+        if signature_version.startswith('v4a'):
+            return
+
         for suffix in ['-query', '-presign-post']:
             if signature_version.endswith(suffix):
-                return 's3' + suffix
+                return f's3{suffix}'
 
     def _get_client_args(
         self,

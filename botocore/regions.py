@@ -661,59 +661,113 @@ class EndpointRulesetResolver:
         if self._requested_auth_scheme == UNSIGNED:
             return 'none', {}
 
-        # normalize auth type names by removing any "sig" prefix
-        def strip_sig(auth_name):
-            return auth_name[3:] if auth_name.startswith('sig') else auth_name
-
         auth_schemes = [
-            {**el, 'name': strip_sig(el['name'])} for el in auth_schemes
+            {**scheme, 'name': self._strip_sig_prefix(scheme['name'])}
+            for scheme in auth_schemes
         ]
-
-        for scheme in auth_schemes:
-            if scheme['name'] not in AUTH_TYPE_MAPS:
-                continue
-
-            signing_context = {}
-            if 'signingRegion' in scheme:
-                signing_context['region'] = scheme['signingRegion']
-            elif 'signingRegionSet' in scheme:
-                # todo: can we handle lists of regions?
-                if len(scheme['signingRegionSet'][0]) > 0:
-                    signing_context['region'] = scheme['signingRegionSet'][0]
-            if 'signingName' in scheme:
-                signing_context.update(signing_name=scheme['signingName'])
-            if 'disableDoubleEncoding' in scheme:
-                signing_context['disableDoubleEncoding'] = ensure_boolean(
-                    scheme['disableDoubleEncoding']
+        if self._requested_auth_scheme is not None:
+            try:
+                # Use the first scheme that matches the requested scheme,
+                # after accounting for naming differences between botocore and
+                # endpoint rulesets. Keep the requested name.
+                name, scheme = next(
+                    (self._requested_auth_scheme, s)
+                    for s in auth_schemes
+                    if self._does_botocore_authname_match_ruleset_authname(
+                        self._requested_auth_scheme, s['name']
+                    )
                 )
-
-            LOG.debug(
-                'Selected auth type "%s" with signing context params: %s',
-                scheme['name'],
-                signing_context,
-            )
-            return scheme['name'], signing_context
+            except StopIteration:
+                # For legacy signers, no match will be found. Do not raise an
+                # exception, instead default to the logic in botocore
+                # customizations.
+                return None, {}
         else:
-            # If an authSchemes list is present in the Endpoint object but none
-            # of the entries are supported, raise an exception. (However, if
-            # authSchemes is not present, use the service's default auth type.)
-            fixable_with_crt = False
-            auth_type_options = [scheme['name'] for scheme in auth_schemes]
-            if not HAS_CRT:
-                fixable_with_crt = any(
-                    scheme in CRT_SUPPORTED_AUTH_TYPES
-                    for scheme in auth_type_options
+            try:
+                name, scheme = next(
+                    (s['name'], s)
+                    for s in auth_schemes
+                    if s['name'] in AUTH_TYPE_MAPS
                 )
+            except StopIteration:
+                # If no auth scheme was specifically requested and an
+                # authSchemes list is present in the Endpoint object but none
+                # of the entries are supported, raise an exception.
+                fixable_with_crt = False
+                auth_type_options = [s['name'] for s in auth_schemes]
+                if not HAS_CRT:
+                    fixable_with_crt = any(
+                        scheme in CRT_SUPPORTED_AUTH_TYPES
+                        for scheme in auth_type_options
+                    )
 
-            if fixable_with_crt:
-                raise MissingDependencyException(
-                    msg='This operation requires an additional dependency. '
-                    'Use pip install botocore[crt] before proceeding.'
-                )
-            else:
-                raise UnknownSignatureVersionError(
-                    signature_version=', '.join(auth_type_options)
-                )
+                if fixable_with_crt:
+                    raise MissingDependencyException(
+                        msg='This operation requires an additional dependency.'
+                        ' Use pip install botocore[crt] before proceeding.'
+                    )
+                else:
+                    raise UnknownSignatureVersionError(
+                        signature_version=', '.join(auth_type_options)
+                    )
+
+        signing_context = {}
+        if 'signingRegion' in scheme:
+            signing_context['region'] = scheme['signingRegion']
+        elif 'signingRegionSet' in scheme:
+            # todo: can we handle lists of regions?
+            if len(scheme['signingRegionSet'][0]) > 0:
+                signing_context['region'] = scheme['signingRegionSet'][0]
+        if 'signingName' in scheme:
+            signing_context.update(signing_name=scheme['signingName'])
+        if 'disableDoubleEncoding' in scheme:
+            signing_context['disableDoubleEncoding'] = ensure_boolean(
+                scheme['disableDoubleEncoding']
+            )
+
+        LOG.debug(
+            'Selected auth type "%s" as "%s" with signing context params: %s',
+            scheme['name'],  # original name without "sig"
+            name,  # chosen name can differ when `signature_version` is set
+            signing_context,
+        )
+        return name, signing_context
+
+    def _strip_sig_prefix(self, auth_name):
+        """Normalize auth type names by removing any "sig" prefix"""
+        return auth_name[3:] if auth_name.startswith('sig') else auth_name
+
+    def _does_botocore_authname_match_ruleset_authname(self, botoname, rsname):
+        """
+        Whether a valid string provided as signature_version parameter for
+        client construction refers to the same auth methods as a string
+        returned by the endpoint ruleset provider. This accounts for:
+
+        * The ruleset prefixes auth names with "sig"
+        * The s3 and s3control rulesets don't distinguish between v4[a] and
+          s3v4[a] signers
+        * The v2, v3, and HMAC v1 based signers (s3, s3-*) are botocore legacy
+          features and do not exist in the rulesets
+        * Only characters up to the first dash are considered
+
+        Example matches:
+        * v4, sigv4
+        * v4, v4
+        * s3v4, sigv4
+        * s3v7, sigv7 (hypothetical example)
+        * s3v4a, sigv4a
+        * s3v4-query, sigv4
+
+        Example mismatches:
+        * v4a, sigv4
+        * s3, sigv4
+        * s3-presign-post, sigv4
+        """
+        rsname = self._strip_sig_prefix(rsname)
+        botoname = botoname.split('-')[0]
+        if botoname != 's3' and botoname.startswith('s3'):
+            botoname = botoname[2:]
+        return rsname == botoname
 
     def ruleset_error_to_botocore_exception(self, ruleset_exception, params):
         """Attempts to translate ruleset errors to pre-existing botocore

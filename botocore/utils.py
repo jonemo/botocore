@@ -1535,7 +1535,11 @@ class S3RegionRedirector:
             # transport error.
             return
 
-        if '.s3-accesspoint.' in request_dict.get('url', ''):
+        previous_request_url = request_dict.get('url', '')
+        if (
+            '.s3-accesspoint.' in previous_request_url
+            or '.s3-accesspoint-fips.' in previous_request_url
+        ):
             logger.debug(
                 'S3 request was previously for an Accesspoint ARN, not '
                 'redirecting.'

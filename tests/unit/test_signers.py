@@ -856,10 +856,10 @@ class TestGenerateUrl(unittest.TestCase):
 
         ref_request_dict = {
             'body': b'',
-            'url': 'https://s3.amazonaws.com/mybucket/mykey',
+            'url': 'https://mybucket.s3.amazonaws.com/mykey',
             'headers': {},
             'query_string': {},
-            'url_path': '/mybucket/mykey',
+            'url_path': '/mykey',
             'method': 'GET',
             # mock.ANY is used because client parameter related events
             # inject values into the context. So using the context's exact
@@ -886,13 +886,13 @@ class TestGenerateUrl(unittest.TestCase):
         ref_request_dict = {
             'body': b'',
             'url': (
-                'https://s3.amazonaws.com/mybucket/mykey'
+                'https://mybucket.s3.amazonaws.com/mykey'
                 '?response-content-disposition='
                 'attachment%3B%20filename%3D%22download.jpg%22'
             ),
             'headers': {},
             'query_string': {'response-content-disposition': disposition},
-            'url_path': '/mybucket/mykey',
+            'url_path': '/mykey',
             'method': 'GET',
             'context': mock.ANY,
         }
@@ -918,10 +918,10 @@ class TestGenerateUrl(unittest.TestCase):
         )
         ref_request_dict = {
             'body': b'',
-            'url': 'https://s3.amazonaws.com/mybucket/mykey',
+            'url': 'https://mybucket.s3.amazonaws.com/mykey',
             'headers': {},
             'query_string': {},
-            'url_path': '/mybucket/mykey',
+            'url_path': '/mykey',
             'method': 'GET',
             'context': mock.ANY,
         }
@@ -939,10 +939,10 @@ class TestGenerateUrl(unittest.TestCase):
         )
         ref_request_dict = {
             'body': b'',
-            'url': 'https://s3.amazonaws.com/mybucket/mykey',
+            'url': 'https://mybucket.s3.amazonaws.com/mykey',
             'headers': {},
             'query_string': {},
-            'url_path': '/mybucket/mykey',
+            'url_path': '/mykey',
             'method': 'PUT',
             'context': mock.ANY,
         }
@@ -1010,7 +1010,7 @@ class TestGeneratePresignedPost(unittest.TestCase):
         fields = post_kwargs['fields']
         conditions = post_kwargs['conditions']
         self.assertEqual(
-            request_dict['url'], 'https://s3.amazonaws.com/mybucket'
+            request_dict['url'], 'https://mybucket.s3.amazonaws.com/'
         )
         self.assertEqual(post_kwargs['expires_in'], 3600)
         self.assertEqual(
@@ -1027,7 +1027,7 @@ class TestGeneratePresignedPost(unittest.TestCase):
         fields = post_kwargs['fields']
         conditions = post_kwargs['conditions']
         self.assertEqual(
-            request_dict['url'], 'https://s3.amazonaws.com/mybucket'
+            request_dict['url'], 'https://mybucket.s3.amazonaws.com/'
         )
         self.assertEqual(post_kwargs['expires_in'], 3600)
         self.assertEqual(
@@ -1045,7 +1045,7 @@ class TestGeneratePresignedPost(unittest.TestCase):
         fields = post_kwargs['fields']
         conditions = post_kwargs['conditions']
         self.assertEqual(
-            request_dict['url'], 'https://s3.amazonaws.com/mybucket'
+            request_dict['url'], 'https://mybucket.s3.amazonaws.com/'
         )
         self.assertEqual(post_kwargs['expires_in'], 50)
         self.assertEqual(
@@ -1068,7 +1068,7 @@ class TestGeneratePresignedPost(unittest.TestCase):
         fields = post_kwargs['fields']
         conditions = post_kwargs['conditions']
         self.assertEqual(
-            request_dict['url'], 'https://s3.amazonaws.com/mybucket'
+            request_dict['url'], 'https://mybucket.s3.amazonaws.com/'
         )
         self.assertEqual(
             conditions,

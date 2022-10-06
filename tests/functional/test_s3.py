@@ -2493,12 +2493,10 @@ def _s3_addressing_test_cases():
         bucket="bucket",
         key="key",
         s3_config=use_dualstack,
-        # Pseudo-regions should not have any special resolving logic even when
-        # the endpoint won't work as we do not have the metadata to know that
-        # a region does not support dualstack. So just format it based on the
-        # region name.
+        # The aws-global pseudo region does not support dualstack and should
+        # be resolved to us-east-1.
         expected_url=(
-            "https://bucket.s3.dualstack.aws-global.amazonaws.com/key"
+            "https://bucket.s3.dualstack.us-east-1.amazonaws.com/key"
         ),
     )
     yield dict(

@@ -1655,10 +1655,7 @@ class TestFipsRegionRedirect(BaseS3OperationTest):
         self.client = self.session.create_client(
             "s3",
             "fips-us-west-2",
-            config=Config(
-                signature_version="s3v4",
-                s3={"addressing_style": "path"},
-            ),
+            config=Config(signature_version="s3v4"),
         )
         self.http_stubber = ClientHTTPStubber(self.client)
 
@@ -1718,12 +1715,12 @@ class TestFipsRegionRedirect(BaseS3OperationTest):
         self.assertEqual(len(self.http_stubber.requests), 2)
 
         initial_url = (
-            "https://s3-fips.us-west-2.amazonaws.com/foo" "?encoding-type=url"
+            "https://foo.s3-fips.us-west-2.amazonaws.com/?encoding-type=url"
         )
         self.assertEqual(self.http_stubber.requests[0].url, initial_url)
 
         fixed_url = (
-            "https://s3-fips.us-west-1.amazonaws.com/foo" "?encoding-type=url"
+            "https://foo.s3-fips.us-west-1.amazonaws.com/?encoding-type=url"
         )
         self.assertEqual(self.http_stubber.requests[1].url, fixed_url)
 
@@ -1745,12 +1742,12 @@ class TestFipsRegionRedirect(BaseS3OperationTest):
 
         self.assertEqual(len(self.http_stubber.requests), 3)
         initial_url = (
-            "https://s3-fips.us-west-2.amazonaws.com/foo" "?encoding-type=url"
+            "https://foo.s3-fips.us-west-2.amazonaws.com/?encoding-type=url"
         )
         self.assertEqual(self.http_stubber.requests[0].url, initial_url)
 
         fixed_url = (
-            "https://s3-fips.us-west-1.amazonaws.com/foo" "?encoding-type=url"
+            "https://foo.s3-fips.us-west-1.amazonaws.com/?encoding-type=url"
         )
         self.assertEqual(self.http_stubber.requests[1].url, fixed_url)
         self.assertEqual(self.http_stubber.requests[2].url, fixed_url)

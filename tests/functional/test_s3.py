@@ -1178,7 +1178,7 @@ class TestAccesspointArn(BaseS3ClientConfigurationTest):
         self, arn, region, expected, endpoint_url=None, config=None
     ):
         presigned_url = self._get_presigned_url(
-            arn, region, endpoint_url=None, config=None
+            arn, region, endpoint_url=endpoint_url, config=config
         )
         url_parts = urlsplit(presigned_url)
         self.assertEqual(expected, url_parts.hostname)

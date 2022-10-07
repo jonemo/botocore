@@ -1025,6 +1025,10 @@ def add_retry_headers(request, **kwargs):
 def remove_bucket_from_url_paths_from_model(params, model, context, **kwargs):
     """Strips leading `{Bucket}/` from any operations that have it.
 
+    The original value is retained in a separate "authPath" field. This is
+    used in the HmacV1Auth signer. See HmacV1Auth.canonical_resource in
+    botocore/auth.py for details.
+
     This change is applied to the operation model during the first time the
     operation is invoked and then stays in effect for the lifetime of the
     client object.
@@ -1039,8 +1043,14 @@ def remove_bucket_from_url_paths_from_model(params, model, context, **kwargs):
     """
     if model.service_model.service_name != 's3':
         return
-    if model.http['requestUri'].startswith('/{Bucket}'):
-        model.http['requestUri'] = model.http['requestUri'][9:]
+    req_uri = model.http['requestUri']
+    if req_uri.startswith('/{Bucket}'):
+        model.http['requestUri'] = req_uri[9:]
+        # If the request URI is _only_ a bucket, the auth_path must be
+        # terminated with a '/' character to generate a signature that the
+        # server will accept.
+        needs_slash = req_uri == '/{Bucket}'
+        model.http['authPath'] = f'{req_uri}/' if needs_slash else req_uri
 
 
 def remove_accid_host_prefix_from_model(params, model, context, **kwargs):

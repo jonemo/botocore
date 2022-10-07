@@ -470,6 +470,12 @@ class BaseRestSerializer(Serializer):
         serialized['url_path'] = self._render_uri_template(
             operation_model.http['requestUri'], partitioned['uri_path_kwargs']
         )
+
+        if 'authPath' in operation_model.http:
+            serialized['auth_path'] = self._render_uri_template(
+                operation_model.http['authPath'],
+                partitioned['uri_path_kwargs'],
+            )
         # Note that we lean on the http implementation to handle the case
         # where the requestUri path already has query parameters.
         # The bundled http client, requests, already supports this.

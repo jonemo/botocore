@@ -858,6 +858,7 @@ class TestGenerateUrl(unittest.TestCase):
             'body': b'',
             'url': 'https://mybucket.s3.amazonaws.com/mykey',
             'headers': {},
+            'auth_path': '/mybucket/mykey',
             'query_string': {},
             'url_path': '/mykey',
             'method': 'GET',
@@ -890,6 +891,7 @@ class TestGenerateUrl(unittest.TestCase):
                 '?response-content-disposition='
                 'attachment%3B%20filename%3D%22download.jpg%22'
             ),
+            'auth_path': '/mybucket/mykey',
             'headers': {},
             'query_string': {'response-content-disposition': disposition},
             'url_path': '/mykey',
@@ -919,6 +921,7 @@ class TestGenerateUrl(unittest.TestCase):
         ref_request_dict = {
             'body': b'',
             'url': 'https://mybucket.s3.amazonaws.com/mykey',
+            'auth_path': '/mybucket/mykey',
             'headers': {},
             'query_string': {},
             'url_path': '/mykey',
@@ -940,6 +943,7 @@ class TestGenerateUrl(unittest.TestCase):
         ref_request_dict = {
             'body': b'',
             'url': 'https://mybucket.s3.amazonaws.com/mykey',
+            'auth_path': '/mybucket/mykey',
             'headers': {},
             'query_string': {},
             'url_path': '/mykey',

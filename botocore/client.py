@@ -44,9 +44,11 @@ from botocore.utils import (
     EventbridgeSignerSetter,
     S3ArnParamHandler,
     S3ControlArnParamHandler,
-    S3ControlEndpointSetter,  # noqa
-    S3EndpointSetter,  # noqa
+    S3ControlArnParamHandler2,
+    S3ControlEndpointSetter,
+    S3EndpointSetter,
     S3RegionRedirector,
+    S3RegionRedirector2,
     ensure_boolean,
     get_service_module_name,
 )
@@ -155,8 +157,8 @@ class ClientCreator:
         )
         service_client = cls(**client_args)
         self._register_retries(service_client)
-        self._register_s3_events(service_client, client_config, scoped_config)
-        self._register_s3_control_events(service_client)
+        self._register_s3_events2(service_client, client_config, scoped_config)
+        self._register_s3_control_events2(service_client)
 
         if client_args['endpoint_ruleset_resolver'] is None:
             # When using the legacy endpoint resolver, several event handlers
@@ -356,18 +358,66 @@ class ClientCreator:
             endpoint_url=endpoint_url,
         ).register(client.meta.events)
 
-    def _register_s3_events(self, client, client_config, scoped_config):
+    def _register_s3_events2(self, client, client_config, scoped_config):
         if client.meta.service_model.service_name != 's3':
             return
-        S3RegionRedirector(None, client).register()
+        S3RegionRedirector2(None, client).register()
         self._set_s3_presign_signature_version(
             client.meta, client_config, scoped_config
         )
 
-    def _register_s3_control_events(self, client):
+    # Unused method, kept for potential third party importers
+    def _register_s3_events(
+        self,
+        client,
+        endpoint_bridge,
+        endpoint_url,
+        client_config,
+        scoped_config,
+    ):
+        if client.meta.service_model.service_name != 's3':
+            return
+        S3RegionRedirector(endpoint_bridge, client).register()
+        S3ArnParamHandler().register(client.meta.events)
+        use_fips_endpoint = client.meta.config.use_fips_endpoint
+        S3EndpointSetter(
+            endpoint_resolver=self._endpoint_resolver,
+            region=client.meta.region_name,
+            s3_config=client.meta.config.s3,
+            endpoint_url=endpoint_url,
+            partition=client.meta.partition,
+            use_fips_endpoint=use_fips_endpoint,
+        ).register(client.meta.events)
+        self._set_s3_presign_signature_version(
+            client.meta, client_config, scoped_config
+        )
+
+    def _register_s3_control_events2(self, client):
         if client.meta.service_model.service_name != 's3control':
             return
+        S3ControlArnParamHandler2().register(client.meta.events)
+
+    # Unused method, kept for potential third party importers
+    def _register_s3_control_events(
+        self,
+        client,
+        endpoint_bridge,
+        endpoint_url,
+        client_config,
+        scoped_config,
+    ):
+        if client.meta.service_model.service_name != 's3control':
+            return
+        use_fips_endpoint = client.meta.config.use_fips_endpoint
         S3ControlArnParamHandler().register(client.meta.events)
+        S3ControlEndpointSetter(
+            endpoint_resolver=self._endpoint_resolver,
+            region=client.meta.region_name,
+            s3_config=client.meta.config.s3,
+            endpoint_url=endpoint_url,
+            partition=client.meta.partition,
+            use_fips_endpoint=use_fips_endpoint,
+        ).register(client.meta.events)
 
     def _set_s3_presign_signature_version(
         self, client_meta, client_config, scoped_config

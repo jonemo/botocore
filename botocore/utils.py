@@ -1504,7 +1504,7 @@ def hyphenize_service_id(service_id):
     return service_id.replace(' ', '-').lower()
 
 
-class S3RegionRedirector:
+class S3RegionRedirector2:
     def __init__(self, endpoint_bridge, client, cache=None):
         self._cache = cache or {}
 
@@ -1703,6 +1703,175 @@ class S3RegionRedirector:
             'bucket': bucket,
             'params': params,
         }
+
+
+# Unused class, kept for potential third party importers
+class S3RegionRedirector:
+    def __init__(self, endpoint_bridge, client, cache=None):
+        self._endpoint_resolver = endpoint_bridge
+        self._cache = cache
+        if self._cache is None:
+            self._cache = {}
+
+        # This needs to be a weak ref in order to prevent memory leaks on
+        # python 2.6
+        self._client = weakref.proxy(client)
+
+    def register(self, event_emitter=None):
+        emitter = event_emitter or self._client.meta.events
+        emitter.register('needs-retry.s3', self.redirect_from_error)
+        emitter.register('before-call.s3', self.set_request_url)
+        emitter.register('before-parameter-build.s3', self.redirect_from_cache)
+
+    def redirect_from_error(self, request_dict, response, operation, **kwargs):
+        """
+        An S3 request sent to the wrong region will return an error that
+        contains the endpoint the request should be sent to. This handler
+        will add the redirect information to the signing context and then
+        redirect the request.
+        """
+        if response is None:
+            # This could be none if there was a ConnectionError or other
+            # transport error.
+            return
+
+        if self._is_s3_accesspoint(request_dict.get('context', {})):
+            logger.debug(
+                'S3 request was previously to an accesspoint, not redirecting.'
+            )
+            return
+
+        if request_dict.get('context', {}).get('s3_redirected'):
+            logger.debug(
+                'S3 request was previously redirected, not redirecting.'
+            )
+            return
+
+        error = response[1].get('Error', {})
+        error_code = error.get('Code')
+        response_metadata = response[1].get('ResponseMetadata', {})
+
+        # We have to account for 400 responses because
+        # if we sign a Head* request with the wrong region,
+        # we'll get a 400 Bad Request but we won't get a
+        # body saying it's an "AuthorizationHeaderMalformed".
+        is_special_head_object = (
+            error_code in ('301', '400') and operation.name == 'HeadObject'
+        )
+        is_special_head_bucket = (
+            error_code in ('301', '400')
+            and operation.name == 'HeadBucket'
+            and 'x-amz-bucket-region'
+            in response_metadata.get('HTTPHeaders', {})
+        )
+        is_wrong_signing_region = (
+            error_code == 'AuthorizationHeaderMalformed' and 'Region' in error
+        )
+        is_redirect_status = response[0] is not None and response[
+            0
+        ].status_code in (301, 302, 307)
+        is_permanent_redirect = error_code == 'PermanentRedirect'
+        if not any(
+            [
+                is_special_head_object,
+                is_wrong_signing_region,
+                is_permanent_redirect,
+                is_special_head_bucket,
+                is_redirect_status,
+            ]
+        ):
+            return
+
+        bucket = request_dict['context']['signing']['bucket']
+        client_region = request_dict['context'].get('client_region')
+        new_region = self.get_bucket_region(bucket, response)
+
+        if new_region is None:
+            logger.debug(
+                "S3 client configured for region %s but the bucket %s is not "
+                "in that region and the proper region could not be "
+                "automatically determined." % (client_region, bucket)
+            )
+            return
+
+        logger.debug(
+            "S3 client configured for region %s but the bucket %s is in region"
+            " %s; Please configure the proper region to avoid multiple "
+            "unnecessary redirects and signing attempts."
+            % (client_region, bucket, new_region)
+        )
+        endpoint = self._endpoint_resolver.resolve('s3', new_region)
+        endpoint = endpoint['endpoint_url']
+
+        signing_context = {
+            'region': new_region,
+            'bucket': bucket,
+            'endpoint': endpoint,
+        }
+        request_dict['context']['signing'] = signing_context
+
+        self._cache[bucket] = signing_context
+        self.set_request_url(request_dict, request_dict['context'])
+
+        request_dict['context']['s3_redirected'] = True
+
+        # Return 0 so it doesn't wait to retry
+        return 0
+
+    def get_bucket_region(self, bucket, response):
+        """
+        There are multiple potential sources for the new region to redirect to,
+        but they aren't all universally available for use. This will try to
+        find region from response elements, but will fall back to calling
+        HEAD on the bucket if all else fails.
+
+        :param bucket: The bucket to find the region for. This is necessary if
+            the region is not available in the error response.
+        :param response: A response representing a service request that failed
+            due to incorrect region configuration.
+        """
+        # First try to source the region from the headers.
+        service_response = response[1]
+        response_headers = service_response['ResponseMetadata']['HTTPHeaders']
+        if 'x-amz-bucket-region' in response_headers:
+            return response_headers['x-amz-bucket-region']
+
+        # Next, check the error body
+        region = service_response.get('Error', {}).get('Region', None)
+        if region is not None:
+            return region
+
+        # Finally, HEAD the bucket. No other choice sadly.
+        try:
+            response = self._client.head_bucket(Bucket=bucket)
+            headers = response['ResponseMetadata']['HTTPHeaders']
+        except ClientError as e:
+            headers = e.response['ResponseMetadata']['HTTPHeaders']
+
+        region = headers.get('x-amz-bucket-region', None)
+        return region
+
+    def set_request_url(self, params, context, **kwargs):
+        endpoint = context.get('signing', {}).get('endpoint', None)
+        if endpoint is not None:
+            params['url'] = _get_new_endpoint(params['url'], endpoint, False)
+
+    def redirect_from_cache(self, params, context, **kwargs):
+        """
+        This handler retrieves a given bucket's signing context from the cache
+        and adds it into the request context.
+        """
+        if self._is_s3_accesspoint(context):
+            return
+        bucket = params.get('Bucket')
+        signing_context = self._cache.get(bucket)
+        if signing_context is not None:
+            context['signing'] = signing_context
+        else:
+            context['signing'] = {'bucket': bucket}
+
+    def _is_s3_accesspoint(self, context):
+        return 's3_accesspoint' in context
 
 
 class InvalidArnException(ValueError):
@@ -2447,7 +2616,7 @@ class S3ControlEndpointSetter:
         request.headers['x-amz-outpost-id'] = outpost_name
 
 
-class S3ControlArnParamHandler:
+class S3ControlArnParamHandler2:
     _RESOURCE_SPLIT_REGEX = re.compile(r'[/:]')
 
     def __init__(self, arn_parser=None):
@@ -2578,6 +2747,130 @@ class S3ControlArnParamHandler:
             raise UnsupportedS3ControlConfigurationError(
                 msg='S3 control client does not support accelerate endpoints',
             )
+
+
+# Unused class, kept for potential third party importers
+class S3ControlArnParamHandler:
+    _RESOURCE_SPLIT_REGEX = re.compile(r'[/:]')
+
+    def __init__(self, arn_parser=None):
+        self._arn_parser = arn_parser
+        if arn_parser is None:
+            self._arn_parser = ArnParser()
+
+    def register(self, event_emitter):
+        event_emitter.register(
+            'before-parameter-build.s3-control',
+            self.handle_arn,
+        )
+
+    def handle_arn(self, params, model, context, **kwargs):
+        if model.name in ('CreateBucket', 'ListRegionalBuckets'):
+            # CreateBucket and ListRegionalBuckets are special cases that do
+            # not obey ARN based redirection but will redirect based off of the
+            # presence of the OutpostId parameter
+            self._handle_outpost_id_param(params, model, context)
+        else:
+            self._handle_name_param(params, model, context)
+            self._handle_bucket_param(params, model, context)
+
+    def _get_arn_details_from_param(self, params, param_name):
+        if param_name not in params:
+            return None
+        try:
+            arn = params[param_name]
+            arn_details = self._arn_parser.parse_arn(arn)
+            arn_details['original'] = arn
+            arn_details['resources'] = self._split_resource(arn_details)
+            return arn_details
+        except InvalidArnException:
+            return None
+
+    def _split_resource(self, arn_details):
+        return self._RESOURCE_SPLIT_REGEX.split(arn_details['resource'])
+
+    def _override_account_id_param(self, params, arn_details):
+        account_id = arn_details['account']
+        if 'AccountId' in params and params['AccountId'] != account_id:
+            error_msg = (
+                'Account ID in arn does not match the AccountId parameter '
+                'provided: "%s"'
+            ) % params['AccountId']
+            raise UnsupportedS3ControlArnError(
+                arn=arn_details['original'],
+                msg=error_msg,
+            )
+        params['AccountId'] = account_id
+
+    def _handle_outpost_id_param(self, params, model, context):
+        if 'OutpostId' not in params:
+            return
+        context['outpost_id'] = params['OutpostId']
+
+    def _handle_name_param(self, params, model, context):
+        # CreateAccessPoint is a special case that does not expand Name
+        if model.name == 'CreateAccessPoint':
+            return
+        arn_details = self._get_arn_details_from_param(params, 'Name')
+        if arn_details is None:
+            return
+        if self._is_outpost_accesspoint(arn_details):
+            self._store_outpost_accesspoint(params, context, arn_details)
+        else:
+            error_msg = 'The Name parameter does not support the provided ARN'
+            raise UnsupportedS3ControlArnError(
+                arn=arn_details['original'],
+                msg=error_msg,
+            )
+
+    def _is_outpost_accesspoint(self, arn_details):
+        if arn_details['service'] != 's3-outposts':
+            return False
+        resources = arn_details['resources']
+        if len(resources) != 4:
+            return False
+        # Resource must be of the form outpost/op-123/accesspoint/name
+        return resources[0] == 'outpost' and resources[2] == 'accesspoint'
+
+    def _store_outpost_accesspoint(self, params, context, arn_details):
+        self._override_account_id_param(params, arn_details)
+        accesspoint_name = arn_details['resources'][3]
+        params['Name'] = accesspoint_name
+        arn_details['accesspoint_name'] = accesspoint_name
+        arn_details['outpost_name'] = arn_details['resources'][1]
+        context['arn_details'] = arn_details
+
+    def _handle_bucket_param(self, params, model, context):
+        arn_details = self._get_arn_details_from_param(params, 'Bucket')
+        if arn_details is None:
+            return
+        if self._is_outpost_bucket(arn_details):
+            self._store_outpost_bucket(params, context, arn_details)
+        else:
+            error_msg = (
+                'The Bucket parameter does not support the provided ARN'
+            )
+            raise UnsupportedS3ControlArnError(
+                arn=arn_details['original'],
+                msg=error_msg,
+            )
+
+    def _is_outpost_bucket(self, arn_details):
+        if arn_details['service'] != 's3-outposts':
+            return False
+        resources = arn_details['resources']
+        if len(resources) != 4:
+            return False
+        # Resource must be of the form outpost/op-123/bucket/name
+        return resources[0] == 'outpost' and resources[2] == 'bucket'
+
+    def _store_outpost_bucket(self, params, context, arn_details):
+        self._override_account_id_param(params, arn_details)
+        bucket_name = arn_details['resources'][3]
+        params['Bucket'] = bucket_name
+        arn_details['bucket_name'] = bucket_name
+        arn_details['outpost_name'] = arn_details['resources'][1]
+        context['arn_details'] = arn_details
 
 
 class ContainerMetadataFetcher:

@@ -33,6 +33,7 @@ from botocore.exceptions import (
 )
 from botocore.loaders import Loader
 from botocore.regions import EndpointRulesetResolver
+from tests import requires_crt
 
 REGION_TEMPLATE = "{Region}"
 REGION_REF = {"ref": "Region"}
@@ -387,6 +388,7 @@ def test_auth_schemes_conversion_sigv4(empty_resolver):
     }
 
 
+@requires_crt()
 def test_auth_schemes_conversion_sigv4a_with_crt(monkeypatch, empty_resolver):
     monkeypatch.setattr('botocore.regions.HAS_CRT', True)
     auth_schemes = [

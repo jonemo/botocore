@@ -1081,6 +1081,15 @@ def remove_accid_host_prefix_from_model(params, model, context, **kwargs):
         del model.endpoint['hostPrefix']
 
 
+def remove_arn_from_signing_path(request, **kwargs):
+    if request.auth_path.startswith('/arn%3A'):
+        auth_path_parts = request.auth_path.split('/')
+        if len(auth_path_parts) > 1 and ArnParser.is_arn(
+            unquote(auth_path_parts[1])
+        ):
+            request.auth_path = '/'.join(['', *auth_path_parts[2:]])
+
+
 def customize_endpoint_resolver_builtins(
     builtins, model, params, context, **kwargs
 ):
@@ -1215,6 +1224,7 @@ BUILTIN_HANDLERS = [
     ),
     ('before-parameter-build.route53', fix_route53_ids),
     ('before-parameter-build.glacier', inject_account_id),
+    ('before-sign.s3', remove_arn_from_signing_path),
     ('after-call.s3.ListObjects', decode_list_object),
     ('after-call.s3.ListObjectsV2', decode_list_object_v2),
     ('after-call.s3.ListObjectVersions', decode_list_object_versions),

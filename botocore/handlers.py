@@ -1082,8 +1082,9 @@ def remove_accid_host_prefix_from_model(params, model, context, **kwargs):
 
 
 def remove_arn_from_signing_path(request, **kwargs):
-    if request.auth_path.startswith('/arn%3A'):
-        auth_path_parts = request.auth_path.split('/')
+    auth_path = request.auth_path
+    if isinstance(auth_path, str) and auth_path.startswith('/arn%3A'):
+        auth_path_parts = auth_path.split('/')
         if len(auth_path_parts) > 1 and ArnParser.is_arn(
             unquote(auth_path_parts[1])
         ):

@@ -1628,3 +1628,52 @@ def test_add_recursion_detection_header(environ, header_before, header_after):
     with mock.patch('os.environ', environ):
         handlers.add_recursion_detection_header(request_dict)
         assert request_dict['headers'] == header_after
+
+
+@pytest.mark.parametrize(
+    'auth_path_in, auth_path_expected',
+    [
+        # access points should be stripped
+        (
+            '/arn%3Aaws%3As3%3Aus-west-2%3A1234567890%3Aaccesspoint%2Fmy-ap/object.txt',
+            '/object.txt',
+        ),
+        (
+            '/arn%3Aaws%3As3%3Aus-west-2%3A1234567890%3Aaccesspoint%2Fmy-ap/foo/foo/foo/object.txt',
+            '/foo/foo/foo/object.txt',
+        ),
+        # regular bucket names should not be stripped
+        (
+            '/mybucket/object.txt',
+            '/mybucket/object.txt',
+        ),
+        (
+            '/mybucket/foo/foo/foo/object.txt',
+            '/mybucket/foo/foo/foo/object.txt',
+        ),
+        (
+            '/arn-is-a-valid-bucketname/object.txt',
+            '/arn-is-a-valid-bucketname/object.txt',
+        ),
+        # non-bucket cases
+        (
+            '',
+            '',
+        ),
+        (
+            None,
+            None,
+        ),
+        (
+            123,
+            123,
+        ),
+    ],
+)
+def test_remove_arn_from_signing_path(auth_path_in, auth_path_expected):
+    request = AWSRequest(method='GET', auth_path=auth_path_in)
+    # the handler modifies the request in place
+    handlers.remove_arn_from_signing_path(
+        request=request, some='other', kwarg='values'
+    )
+    assert request.auth_path == auth_path_expected

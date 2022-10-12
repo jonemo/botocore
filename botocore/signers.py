@@ -24,7 +24,7 @@ from botocore.exceptions import (
     UnknownSignatureVersionError,
     UnsupportedSignatureVersionError,
 )
-from botocore.utils import datetime2timestamp
+from botocore.utils import ArnParser, datetime2timestamp
 
 # Keep these imported.  There's pre-existing code that uses them.
 from botocore.utils import fix_s3_host  # noqa
@@ -699,6 +699,14 @@ def generate_presigned_url(
                 auth_schemes
             )
             context['auth_type'] = auth_type
+            # For backwards compatibility, the signing region returned by
+            # endpoint provider is ignored for presigned S3 URLs that use a
+            # Bucket name. Botocore returns a global endpoint URL but a sigv4
+            # signature for the current client's region.
+            if 'region' in signing_context and not (
+                'Bucket' in params and ArnParser.is_arn(params.get('Bucket'))
+            ):
+                del signing_context['region']
             if 'signing' in context:
                 context['signing'].update(signing_context)
             else:
@@ -844,6 +852,14 @@ def generate_presigned_post(
                 auth_schemes
             )
             context['auth_type'] = auth_type
+            # For backwards compatibility, the signing region returned by
+            # endpoint provider is ignored for presigned S3 URLs that use a
+            # Bucket name. Botocore returns a global endpoint URL but a sigv4
+            # signature for the current client's region.
+            if 'region' in signing_context and not (
+                'Bucket' in params and ArnParser.is_arn(params.get('Bucket'))
+            ):
+                del signing_context['region']
             if 'signing' in context:
                 context['signing'].update(signing_context)
             else:

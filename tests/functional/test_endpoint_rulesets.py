@@ -23,7 +23,11 @@ from botocore.client import (
     FORCE_ENDPOINT_RESOLUTION_V2,
 )
 from botocore.endpoint_provider import EndpointProvider
-from botocore.exceptions import ClientError, EndpointResolutionError
+from botocore.exceptions import (
+    BotoCoreError,
+    ClientError,
+    EndpointResolutionError,
+)
 from botocore.loaders import Loader
 from botocore.parsers import ResponseParserError
 from tests import ClientHTTPStubber
@@ -160,7 +164,7 @@ def iter_e2e_test_cases_that_produce(endpoints=False, errors=False):
         for op_inputs in test['operationInputs']:
             op_name = op_inputs['operationName']
             builtins = op_inputs.get('builtInParams', {})
-            op_params = op_inputs.get('operationParameters', {})
+            op_params = op_inputs.get('operationParams', {})
             expected_object = test['expect']
             if endpoints and 'endpoint' in expected_object:
                 yield (
@@ -250,3 +254,33 @@ def test_end_to_end_test_cases_yielding_endpoints(
         assert actual_url.startswith(
             expected_endpoint['url']
         ), f"{actual_url} does not start with {expected_endpoint['url']}"
+
+
+@pytest.mark.parametrize(
+    'service_name, op_name, op_params, builtin_params, expected_error',
+    iter_e2e_test_cases_that_produce(errors=True),
+)
+def test_end_to_end_test_cases_yielding_errors(
+    service_name, op_name, op_params, builtin_params, expected_error
+):
+    def builtin_overwriter_handler(builtins, **kwargs):
+        # must edit builtins dict in place but need to erase all existing
+        # entries
+        for key in list(builtins.keys()):
+            del builtins[key]
+        for key, val in builtin_params.items():
+            builtins[key] = val
+
+    client = SESSION.create_client(service_name)
+    client.meta.events.register_last(
+        'before-endpoint-resolution', builtin_overwriter_handler
+    )
+    with ClientHTTPStubber(client, strict=True) as http_stubber:
+        http_stubber.add_response(status=418)
+        op_fn = getattr(client, xform_name(op_name))
+        with pytest.raises(BotoCoreError):
+            try:
+                op_fn(**op_params)
+            except (ClientError, ResponseParserError):
+                pass
+        assert len(http_stubber.requests) == 0

@@ -715,8 +715,7 @@ class EndpointRulesetResolver:
         if 'signingRegion' in scheme:
             signing_context['region'] = scheme['signingRegion']
         elif 'signingRegionSet' in scheme:
-            # todo: can we handle lists of regions?
-            if len(scheme['signingRegionSet'][0]) > 0:
+            if len(scheme['signingRegionSet']) > 0:
                 signing_context['region'] = scheme['signingRegionSet'][0]
         if 'signingName' in scheme:
             signing_context.update(signing_name=scheme['signingName'])

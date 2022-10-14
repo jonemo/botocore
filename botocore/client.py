@@ -66,9 +66,17 @@ from botocore import UNSIGNED  # noqa
 logger = logging.getLogger(__name__)
 history_recorder = get_global_history_recorder()
 
+# List of services for which rule-based endpoint resolution is always enabled.
 # This list will change and eventually be removed during minor or patch version
 # changes as part of the rollout of rule-based endpoints resolution.
-_ENDPOINT_RESOLUTION_V2_SERVICES = ['s3', 's3control']
+ENDPOINT_RESOLUTION_V2_SERVICES = ['s3', 's3control']
+# Feature flag to enable rule-based endpoint resolution for all services.
+# Only for testing use. Rulesets for services may be missing or incomplete
+# until the service is enabled for rule-based endpoint resolution by default.
+# This flag will eventually be removed during a minor or patch version change.
+FORCE_ENDPOINT_RESOLUTION_V2 = ensure_boolean(
+    os.environ.get('BOTO_FORCE_ENDPOINT_RESOLUTION_V2', False)
+)
 
 
 class ClientCreator:
@@ -119,8 +127,9 @@ class ClientCreator:
         service_name = first_non_none_response(responses, default=service_name)
         service_model = self._load_service_model(service_name, api_version)
 
-        if service_name in _ENDPOINT_RESOLUTION_V2_SERVICES or ensure_boolean(
-            os.environ.get('BOTO_FORCE_ENDPOINT_RESOLUTION_V2', False)
+        if (
+            service_name in ENDPOINT_RESOLUTION_V2_SERVICES
+            or FORCE_ENDPOINT_RESOLUTION_V2
         ):
             endpoints_ruleset_data = self._load_service_endpoints_ruleset(
                 service_name, api_version

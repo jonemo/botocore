@@ -22,6 +22,7 @@ from botocore.client import (
     ENDPOINT_RESOLUTION_V2_SERVICES,
     FORCE_ENDPOINT_RESOLUTION_V2,
 )
+from botocore.config import Config
 from botocore.endpoint_provider import EndpointProvider
 from botocore.exceptions import (
     BotoCoreError,
@@ -238,7 +239,12 @@ def test_end_to_end_test_cases_yielding_endpoints(
         for key, val in builtin_params.items():
             builtins[key] = val
 
-    client = SESSION.create_client(service_name)
+    client = SESSION.create_client(
+        service_name,
+        # endpoint ruleset test cases do not account for host prefixes from the
+        # operation model
+        config=Config(inject_host_prefix=False),
+    )
     client.meta.events.register_last(
         'before-endpoint-resolution', builtin_overwriter_handler
     )

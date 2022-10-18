@@ -17,10 +17,7 @@ from contextlib import closing
 import botocore
 import botocore.config
 from botocore import client, exceptions, hooks
-from botocore.client import (
-    ClientEndpointBridge,
-    FORCE_ENDPOINT_RESOLUTION_V2,
-)
+from botocore.client import FORCE_ENDPOINT_RESOLUTION_V2, ClientEndpointBridge
 from botocore.compat import six
 from botocore.configprovider import (
     ChainProvider,

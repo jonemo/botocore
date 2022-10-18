@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from botocore import session, xform_name
+from botocore import xform_name
 from botocore.client import (
     ENDPOINT_RESOLUTION_V2_SERVICES,
     FORCE_ENDPOINT_RESOLUTION_V2,
@@ -35,7 +35,7 @@ from tests import ClientHTTPStubber
 
 ENDPOINT_TESTDATA_DIR = Path(__file__).parent / 'endpoint-rules'
 LOADER = Loader()
-SESSION = session.get_session()
+
 # For the purpose of the tests in this file, only services for which an
 # endpoint ruleset file exists matter. The existence of required endpoint
 # ruleset files is asserted for in tests/functional/test_model_completeness.py
@@ -146,7 +146,7 @@ def iter_all_test_cases():
             yield service_name, test_case
 
 
-def iter_test_cases_that_produce(endpoints=False, errors=False):
+def iter_provider_test_cases_that_produce(endpoints=False, errors=False):
     for service_name, test in iter_all_test_cases():
         input_params = test.get('params', {})
         expected_object = test['expect']
@@ -158,14 +158,21 @@ def iter_test_cases_that_produce(endpoints=False, errors=False):
 
 def iter_e2e_test_cases_that_produce(endpoints=False, errors=False):
     for service_name, test in iter_all_test_cases():
+        # Not all test cases contain operation inputs for end-to-end tests.
         if 'operationInputs' not in test:
             continue
-        # each test case can contain a list of input sets for the same
-        # expected result
+        # Each test case can contain a list of input sets for the same
+        # expected result.
         for op_inputs in test['operationInputs']:
+            op_params = op_inputs.get('operationParams', {})
+            # Test cases that use invalid bucket names as inputs fail in
+            # botocore because botocore validated bucket names before running
+            # endpoint resolution.
+            if op_params.get('Bucket') in ['bucket name', 'example.com#']:
+                continue
             op_name = op_inputs['operationName']
             builtins = op_inputs.get('builtInParams', {})
-            op_params = op_inputs.get('operationParams', {})
+
             expected_object = test['expect']
             if endpoints and 'endpoint' in expected_object:
                 yield (
@@ -186,22 +193,8 @@ def iter_e2e_test_cases_that_produce(endpoints=False, errors=False):
 
 
 @pytest.mark.parametrize(
-    'service_name, input_params, expected_error',
-    iter_test_cases_that_produce(errors=True),
-)
-def test_endpoint_provider_test_cases_yielding_errors(
-    partitions, service_name, input_params, expected_error
-):
-    ruleset = LOADER.load_service_model(service_name, 'endpoint-rule-set-1')
-    endpoint_provider = EndpointProvider(ruleset, partitions)
-    with pytest.raises(EndpointResolutionError) as exc_info:
-        endpoint_provider.resolve_endpoint(**input_params)
-    assert str(exc_info.value) == expected_error
-
-
-@pytest.mark.parametrize(
     'service_name, input_params, expected_endpoint',
-    iter_test_cases_that_produce(endpoints=True),
+    iter_provider_test_cases_that_produce(endpoints=True),
 )
 def test_endpoint_provider_test_cases_yielding_endpoints(
     partitions, service_name, input_params, expected_endpoint
@@ -215,13 +208,17 @@ def test_endpoint_provider_test_cases_yielding_endpoints(
 
 
 @pytest.mark.parametrize(
-    'service_name, op_name, op_params, builtins, expected_error',
-    iter_e2e_test_cases_that_produce(errors=True),
+    'service_name, input_params, expected_error',
+    iter_provider_test_cases_that_produce(errors=True),
 )
-def test_end_to_end_test_cases_yielding_errors(
-    service_name, op_name, op_params, builtins, expected_error
+def test_endpoint_provider_test_cases_yielding_errors(
+    partitions, service_name, input_params, expected_error
 ):
-    pass
+    ruleset = LOADER.load_service_model(service_name, 'endpoint-rule-set-1')
+    endpoint_provider = EndpointProvider(ruleset, partitions)
+    with pytest.raises(EndpointResolutionError) as exc_info:
+        endpoint_provider.resolve_endpoint(**input_params)
+    assert str(exc_info.value) == expected_error
 
 
 @pytest.mark.parametrize(
@@ -229,7 +226,12 @@ def test_end_to_end_test_cases_yielding_errors(
     iter_e2e_test_cases_that_produce(endpoints=True),
 )
 def test_end_to_end_test_cases_yielding_endpoints(
-    service_name, op_name, op_params, builtin_params, expected_endpoint
+    patched_session,
+    service_name,
+    op_name,
+    op_params,
+    builtin_params,
+    expected_endpoint,
 ):
     def builtin_overwriter_handler(builtins, **kwargs):
         # must edit builtins dict in place but need to erase all existing
@@ -239,8 +241,10 @@ def test_end_to_end_test_cases_yielding_endpoints(
         for key, val in builtin_params.items():
             builtins[key] = val
 
-    client = SESSION.create_client(
+    region = builtin_params.get('AWS::Region', 'us-east-1')
+    client = patched_session.create_client(
         service_name,
+        region_name=region,
         # endpoint ruleset test cases do not account for host prefixes from the
         # operation model
         config=Config(inject_host_prefix=False),
@@ -267,7 +271,12 @@ def test_end_to_end_test_cases_yielding_endpoints(
     iter_e2e_test_cases_that_produce(errors=True),
 )
 def test_end_to_end_test_cases_yielding_errors(
-    service_name, op_name, op_params, builtin_params, expected_error
+    patched_session,
+    service_name,
+    op_name,
+    op_params,
+    builtin_params,
+    expected_error,
 ):
     def builtin_overwriter_handler(builtins, **kwargs):
         # must edit builtins dict in place but need to erase all existing
@@ -277,7 +286,8 @@ def test_end_to_end_test_cases_yielding_errors(
         for key, val in builtin_params.items():
             builtins[key] = val
 
-    client = SESSION.create_client(service_name)
+    region = builtin_params.get('AWS::Region', 'us-east-1')
+    client = patched_session.create_client(service_name, region_name=region)
     client.meta.events.register_last(
         'before-endpoint-resolution', builtin_overwriter_handler
     )

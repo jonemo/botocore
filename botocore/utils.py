@@ -3231,6 +3231,8 @@ def is_s3_accelerate_url(url):
     Virtual host naming style with bucket names in the netloc part of the URL
     are not allowed by this function.
     """
+    if url is None:
+        return False
 
     # Accelerate is only valid for Amazon endpoints.
     url_parts = urlsplit(url)

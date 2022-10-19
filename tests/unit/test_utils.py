@@ -3329,6 +3329,8 @@ class TestDetermineContentLength(unittest.TestCase):
         # assorted other ways for URLs to not be valid for s3-accelerate
         ('ftp://s3-accelerate.dualstack.foo.amazonaws.com/key', False),
         ('https://s3-accelerate.dualstack.foo.c2s.ic.gov/key', False),
+        # None-valued url is accepted
+        (None, False),
     ),
 )
 def test_is_s3_accelerate_url(url, expected):

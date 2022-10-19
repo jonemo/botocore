@@ -189,7 +189,7 @@ def iter_e2e_test_cases_that_produce(endpoints=False, errors=False):
                     expected_endpoint,
                     marks=pytest.mark.skipif(
                         'sigv4a' in expected_authschemes,
-                        reason="Test case expects sigv4a signature which required CRT",
+                        reason="Test case expects sigv4a which required CRT",
                     ),
                 )
             if errors and 'error' in expected_object:

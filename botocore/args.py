@@ -85,9 +85,9 @@ class ClientArgsCreator:
         scoped_config,
         client_config,
         endpoint_bridge,
-        endpoints_ruleset_data,
-        partition_data,
         auth_token=None,
+        endpoints_ruleset_data=None,
+        partition_data=None,
     ):
         final_args = self.compute_client_args(
             service_model,

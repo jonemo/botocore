@@ -18,12 +18,12 @@ from pathlib import Path
 import pytest
 
 from botocore import xform_name
-from botocore.client import (
+from botocore.config import Config
+from botocore.endpoint_provider import (
+    EndpointProvider,
     ENDPOINT_RESOLUTION_V2_SERVICES,
     FORCE_ENDPOINT_RESOLUTION_V2,
 )
-from botocore.config import Config
-from botocore.endpoint_provider import EndpointProvider
 from botocore.exceptions import (
     BotoCoreError,
     ClientError,

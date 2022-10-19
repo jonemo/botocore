@@ -25,6 +25,10 @@ from botocore.discovery import (
     block_endpoint_discovery_required_operations,
 )
 from botocore.docs.docstring import ClientMethodDocstring, PaginatorDocstring
+from botocore.endpoint_provider import (
+    ENDPOINT_RESOLUTION_V2_SERVICES,
+    FORCE_ENDPOINT_RESOLUTION_V2,
+)
 from botocore.exceptions import (
     DataNotFoundError,
     InvalidEndpointDiscoveryConfigurationError,
@@ -64,18 +68,6 @@ from botocore import UNSIGNED  # noqa
 
 logger = logging.getLogger(__name__)
 history_recorder = get_global_history_recorder()
-
-# List of services for which rule-based endpoint resolution is always enabled.
-# This list will change and eventually be removed during minor or patch version
-# changes as part of the rollout of rule-based endpoints resolution.
-ENDPOINT_RESOLUTION_V2_SERVICES = ['s3', 's3control']
-# Feature flag to enable rule-based endpoint resolution for all services.
-# Only for testing use. Rulesets for services may be missing or incomplete
-# until the service is enabled for rule-based endpoint resolution by default.
-# This flag will eventually be removed during a minor or patch version change.
-FORCE_ENDPOINT_RESOLUTION_V2 = ensure_boolean(
-    os.environ.get('BOTO_FORCE_ENDPOINT_RESOLUTION_V2', False)
-)
 
 
 class ClientCreator:

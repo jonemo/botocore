@@ -30,10 +30,7 @@ from typing import NamedTuple
 
 from botocore import xform_name
 from botocore.compat import IPV4_RE, quote, urlparse
-from botocore.exceptions import (
-    EndpointResolutionError,
-    MissingRequiredEndpointRulesetParam,
-)
+from botocore.exceptions import EndpointResolutionError
 from botocore.utils import (
     ArnParser,
     InvalidArnException,
@@ -643,7 +640,7 @@ class ParameterDefinition:
             if self.default is not None:
                 return self.default
             if self.required:
-                raise MissingRequiredEndpointRulesetParam(
+                raise EndpointResolutionError(
                     f"Cannot find value for required parameter {self.name}"
                 )
             # in all other cases, the parameter will keep the value None

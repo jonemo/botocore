@@ -1041,8 +1041,6 @@ def remove_bucket_from_url_paths_from_model(params, model, context, **kwargs):
     endpoint resolution, the problem exists in _all_ URLs that contain a bucket
     name and can therefore be addressed before the URL gets assembled.
     """
-    if model.service_model.service_name != 's3':
-        return
     req_uri = model.http['requestUri']
     if req_uri.startswith('/{Bucket}'):
         model.http['requestUri'] = req_uri[9:]
@@ -1066,8 +1064,6 @@ def remove_accid_host_prefix_from_model(params, model, context, **kwargs):
     model to remove the `endpoint.hostPrefix` field while leaving the
     `RequiresAccountId` static context parameter in place.
     """
-    if model.service_model.service_name != 's3control':
-        return
     has_ctx_param = any(
         True
         for ctx_param in model.static_context_parameters

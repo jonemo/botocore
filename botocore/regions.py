@@ -635,7 +635,7 @@ class EndpointRulesetResolver:
         )
         return customized_builtins
 
-    def auth_schemes_to_signing_context(self, auth_schemes):
+    def auth_schemes_to_signing_ctx(self, auth_schemes):
         """Convert an Endpoint's authSchemes property to a signing_context dict
 
         :type auth_schemes: list

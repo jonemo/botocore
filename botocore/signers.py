@@ -695,7 +695,7 @@ def generate_presigned_url(
             (
                 auth_type,
                 signing_context,
-            ) = self._ruleset_resolver.auth_schemes_to_signing_context(
+            ) = self._ruleset_resolver.auth_schemes_to_signing_ctx(
                 auth_schemes
             )
             context['auth_type'] = auth_type
@@ -845,12 +845,10 @@ def generate_presigned_post(
         # signing context derived from service model.
         auth_schemes = endpoint_info.properties.get('authSchemes')
         if auth_schemes is not None:
-            (
-                auth_type,
-                signing_context,
-            ) = self._ruleset_resolver.auth_schemes_to_signing_context(
+            auth_info = self._ruleset_resolver.auth_schemes_to_signing_ctx(
                 auth_schemes
             )
+            auth_type, signing_context = auth_info
             context['auth_type'] = auth_type
             # For backwards compatibility, the signing region returned by
             # endpoint provider is ignored for presigned S3 URLs that use a

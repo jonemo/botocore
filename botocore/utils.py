@@ -1627,10 +1627,8 @@ class S3RegionRedirector2:
         request_dict['context']['s3_redirect']['redirected'] = True
         auth_schemes = ep_info.properties.get('authSchemes')
         if auth_schemes is not None:
-            (
-                auth_type,
-                signing_context,
-            ) = ep_resolver.auth_schemes_to_signing_context(auth_schemes)
+            auth_info = ep_resolver.auth_schemes_to_signing_ctx(auth_schemes)
+            auth_type, signing_context = auth_info
             request_dict['context']['auth_type'] = auth_type
             request_dict['context']['signing'] = {
                 **request_dict['context'].get('signing', {}),

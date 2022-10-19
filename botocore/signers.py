@@ -207,9 +207,9 @@ class RequestSigner:
         # operation specific signing context takes precedent over client-level
         # defaults
         signature_version = context.get('auth_type') or self._signature_version
-signing = context.get('signing', {})
-signing_name = signing.get('signing_name', self._signing_name)
-region_name =. signing.get('region', self._region_name)
+        signing = context.get('signing', {})
+        signing_name = signing.get('signing_name', self._signing_name)
+        region_name = signing.get('region', self._region_name)
         if (
             signature_version is not botocore.UNSIGNED
             and not signature_version.endswith(suffix)

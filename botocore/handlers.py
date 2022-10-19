@@ -1059,15 +1059,14 @@ def remove_accid_host_prefix_from_model(params, model, context, **kwargs):
     client object.
 
     When the ruleset based endpoint resolver is in effect, both the endpoint
-    ruleset _and_ the service model place the {AccountId}. prefix the URL.
+    ruleset _and_ the service model place the {AccountId}. prefix in the URL.
     The result is an invalid endpoint. This handler modifies the operation
     model to remove the `endpoint.hostPrefix` field while leaving the
     `RequiresAccountId` static context parameter in place.
     """
     has_ctx_param = any(
-        True
+        ctx_param.name == 'RequiresAccountId' and ctx_param.value is True
         for ctx_param in model.static_context_parameters
-        if ctx_param.name == 'RequiresAccountId' and ctx_param.value is True
     )
     if (
         model.endpoint is not None

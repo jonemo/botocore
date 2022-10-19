@@ -207,13 +207,9 @@ class RequestSigner:
         # operation specific signing context takes precedent over client-level
         # defaults
         signature_version = context.get('auth_type') or self._signature_version
-        signing_name = (
-            context.get('signing', {}).get('signing_name')
-            or self._signing_name
-        )
-        region_name = (
-            context.get('signing', {}).get('region') or self._region_name
-        )
+signing = context.get('signing', {})
+signing_name = signing.get('signing_name', self._signing_name)
+region_name =. signing.get('region', self._region_name)
         if (
             signature_version is not botocore.UNSIGNED
             and not signature_version.endswith(suffix)
@@ -703,9 +699,8 @@ def generate_presigned_url(
             # endpoint provider is ignored for presigned S3 URLs that use a
             # Bucket name. Botocore returns a global endpoint URL but a sigv4
             # signature for the current client's region.
-            if 'region' in signing_context and not (
-                'Bucket' in params and ArnParser.is_arn(params.get('Bucket'))
-            ):
+            bucket_is_arn = ArnParser.is_arn(params.get('Bucket', ''))
+            if 'region' in signing_context and not bucket_is_arn:
                 del signing_context['region']
             if 'signing' in context:
                 context['signing'].update(signing_context)

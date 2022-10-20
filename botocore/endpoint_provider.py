@@ -22,8 +22,8 @@ or you can look at the test files in /tests/unit/data/endpoints/valid-rules/
 
 
 import logging
-import re
 import os
+import re
 from enum import Enum
 from functools import lru_cache
 from string import Formatter

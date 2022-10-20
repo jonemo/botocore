@@ -907,11 +907,7 @@ class BaseClient:
                 request_context=request_context,
             )
             endpoint_url = endpoint_info.url
-            additional_headers = {
-                # Multi-valued headers are not supported in botocore
-                header_key: header_values[0]
-                for header_key, header_values in endpoint_info.headers.items()
-            }
+            additional_headers = endpoint_info.headers
             # If authSchemes is present, overwrite default auth type and
             # signing context derived from service model.
             auth_schemes = endpoint_info.properties.get('authSchemes')
@@ -992,6 +988,7 @@ class BaseClient:
         endpoint_url,
         context=None,
         headers=None,
+        set_user_agent_header=True,
     ):
         api_params = self._emit_api_params(
             api_params, operation_model, context
@@ -1003,10 +1000,14 @@ class BaseClient:
             request_dict.pop('host_prefix', None)
         if headers is not None:
             request_dict['headers'].update(headers)
+        if set_user_agent_header:
+            user_agent = self._client_config.user_agent
+        else:
+            user_agent = None
         prepare_request_dict(
             request_dict,
             endpoint_url=endpoint_url,
-            user_agent=self._client_config.user_agent,
+            user_agent=user_agent,
             context=context,
         )
         return request_dict

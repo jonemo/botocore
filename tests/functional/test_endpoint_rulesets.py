@@ -20,9 +20,9 @@ import pytest
 from botocore import xform_name
 from botocore.config import Config
 from botocore.endpoint_provider import (
-    EndpointProvider,
     ENDPOINT_RESOLUTION_V2_SERVICES,
     FORCE_ENDPOINT_RESOLUTION_V2,
+    EndpointProvider,
 )
 from botocore.exceptions import (
     BotoCoreError,

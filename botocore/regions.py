@@ -484,7 +484,7 @@ class EndpointRulesetResolver:
         call_args,
         request_context,
     ):
-        """Invokes the provider with params defined in the services ruleset
+        """Invokes the provider with params defined in the service's ruleset
 
         Named to implement the BaseEndpointResolver interface, but does not
         actually return an Endpoint object, instead a dict with endpoint info.

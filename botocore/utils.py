@@ -1616,7 +1616,7 @@ class S3RegionRedirector2:
         # Re-resolve endpoint with new region and modify request_dict with
         # the new URL, auth scheme, and signing context.
         ep_resolver = self._client._ruleset_resolver
-        ep_info = self._client._ruleset_resolver.construct_endpoint(
+        ep_info = ep_resolver.construct_endpoint(
             operation_model=operation,
             call_args=request_dict['context']['s3_redirect']['params'],
             request_context=request_dict['context'],

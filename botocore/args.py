@@ -151,7 +151,8 @@ class ClientArgsCreator:
             # The legacy EndpointResolver is global to the session,
             # EndpointRulesetResolver is service-specific. Builtins for
             # EndpointRulesetResolver must not be derived from the legacy
-            # endpoint resolver's output, including final_args, s3_config, ...
+            # endpoint resolver's output, including final_args, s3_config,
+            # etc.
             s3_config_raw = self.compute_s3_config(client_config) or {}
             service_name_raw = service_model.endpoint_prefix
             # Maintain complex logic for s3 and sts endpoints for backwards

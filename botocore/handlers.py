@@ -1042,12 +1042,13 @@ def remove_bucket_from_url_paths_from_model(params, model, context, **kwargs):
     name and can therefore be addressed before the URL gets assembled.
     """
     req_uri = model.http['requestUri']
-    if req_uri.startswith('/{Bucket}'):
-        model.http['requestUri'] = req_uri[9:]
+    bucket_path = '/{Bucket}'
+    if req_uri.startswith(bucket_path):
+        model.http['requestUri'] = req_uri[len(bucket_path):]
         # If the request URI is _only_ a bucket, the auth_path must be
         # terminated with a '/' character to generate a signature that the
         # server will accept.
-        needs_slash = req_uri == '/{Bucket}'
+        needs_slash = req_uri == bucket_path
         model.http['authPath'] = f'{req_uri}/' if needs_slash else req_uri
 
 

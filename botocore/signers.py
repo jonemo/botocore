@@ -656,40 +656,13 @@ def generate_presigned_url(
         raise UnknownClientMethodError(method_name=client_method)
 
     operation_model = self.meta.service_model.operation_model(operation_name)
-
-    if self._ruleset_resolver is None:
-        endpoint_url = self.meta.endpoint_url
-        additional_headers = {}
-    else:
-        endpoint_info = self._ruleset_resolver.construct_endpoint(
-            operation_model=operation_model,
-            call_args=params,
-            request_context=context,
-        )
-        endpoint_url = endpoint_info.url
-        additional_headers = endpoint_info.headers
-        # If authSchemes is present, overwrite default auth type and
-        # signing context derived from service model.
-        auth_schemes = endpoint_info.properties.get('authSchemes')
-        if auth_schemes is not None:
-            (
-                auth_type,
-                signing_context,
-            ) = self._ruleset_resolver.auth_schemes_to_signing_ctx(
-                auth_schemes
-            )
-            context['auth_type'] = auth_type
-            # For backwards compatibility, the signing region returned by
-            # endpoint provider is ignored for presigned S3 URLs that use a
-            # Bucket name. Botocore returns a global endpoint URL but a sigv4
-            # signature for the current client's region.
-            bucket_is_arn = ArnParser.is_arn(params.get('Bucket', ''))
-            if 'region' in signing_context and not bucket_is_arn:
-                del signing_context['region']
-            if 'signing' in context:
-                context['signing'].update(signing_context)
-            else:
-                context['signing'] = signing_context
+    bucket_is_arn = ArnParser.is_arn(params.get('Bucket', ''))
+    endpoint_url, additional_headers = self._resolve_endpoint_ruleset(
+        operation_model,
+        params,
+        context,
+        ignore_signing_region=(not bucket_is_arn),
+    )
 
     request_dict = self._convert_to_request_dict(
         api_params=params,
@@ -806,39 +779,13 @@ def generate_presigned_post(
     # serialized to what a presign post requires.
     operation_model = self.meta.service_model.operation_model('CreateBucket')
     params = {'Bucket': bucket}
-
-    if self._ruleset_resolver is None:
-        endpoint_url = self.meta.endpoint_url
-        additional_headers = {}
-    else:
-        endpoint_info = self._ruleset_resolver.construct_endpoint(
-            operation_model=operation_model,
-            call_args=params,
-            request_context=context,
-        )
-        endpoint_url = endpoint_info.url
-        additional_headers = endpoint_info.headers
-        # If authSchemes is present, overwrite default auth type and
-        # signing context derived from service model.
-        auth_schemes = endpoint_info.properties.get('authSchemes')
-        if auth_schemes is not None:
-            auth_info = self._ruleset_resolver.auth_schemes_to_signing_ctx(
-                auth_schemes
-            )
-            auth_type, signing_context = auth_info
-            context['auth_type'] = auth_type
-            # For backwards compatibility, the signing region returned by
-            # endpoint provider is ignored for presigned S3 URLs that use a
-            # Bucket name. Botocore returns a global endpoint URL but a sigv4
-            # signature for the current client's region.
-            if 'region' in signing_context and not (
-                'Bucket' in params and ArnParser.is_arn(params.get('Bucket'))
-            ):
-                del signing_context['region']
-            if 'signing' in context:
-                context['signing'].update(signing_context)
-            else:
-                context['signing'] = signing_context
+    bucket_is_arn = ArnParser.is_arn(params.get('Bucket', ''))
+    endpoint_url, additional_headers = self._resolve_endpoint_ruleset(
+        operation_model,
+        params,
+        context,
+        ignore_signing_region=(not bucket_is_arn),
+    )
 
     request_dict = self._convert_to_request_dict(
         api_params=params,

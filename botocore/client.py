@@ -896,32 +896,9 @@ class BaseClient:
             'has_streaming_input': operation_model.has_streaming_input,
             'auth_type': operation_model.auth_type,
         }
-
-        if self._ruleset_resolver is None:
-            endpoint_url = self.meta.endpoint_url
-            additional_headers = {}
-        else:
-            endpoint_info = self._ruleset_resolver.construct_endpoint(
-                operation_model=operation_model,
-                call_args=api_params,
-                request_context=request_context,
-            )
-            endpoint_url = endpoint_info.url
-            additional_headers = endpoint_info.headers
-            # If authSchemes is present, overwrite default auth type and
-            # signing context derived from service model.
-            auth_schemes = endpoint_info.properties.get('authSchemes')
-            if auth_schemes is not None:
-                auth_info = self._ruleset_resolver.auth_schemes_to_signing_ctx(
-                    auth_schemes
-                )
-                auth_type, signing_context = auth_info
-                request_context['auth_type'] = auth_type
-                if 'signing' in request_context:
-                    request_context['signing'].update(signing_context)
-                else:
-                    request_context['signing'] = signing_context
-
+        endpoint_url, additional_headers = self._resolve_endpoint_ruleset(
+            operation_model, api_params, request_context
+        )
         request_dict = self._convert_to_request_dict(
             api_params=api_params,
             operation_model=operation_model,
@@ -1036,6 +1013,56 @@ class BaseClient:
             context=context,
         )
         return api_params
+
+    def _resolve_endpoint_ruleset(
+        self,
+        operation_model,
+        params,
+        request_context,
+        ignore_signing_region=False,
+    ):
+        """Returns endpoint URL and list of additional headers returned from
+        EndpointRulesetResolver for the given operation and params. If the
+        ruleset resolver is not available, for example because the service has
+        no endpoints ruleset file, the legacy endpoint resolver's value is
+        returned.
+
+        Use ignore_signing_region for generating presigned URLs or any other
+        situtation where the signin region information from the ruleset
+        resolver should be ignored.
+
+        Returns tuple of URL and headers dictionary. Additionally, the
+        request_context dict is modified in place with any signing information
+        returned from the ruleset resolver.
+        """
+        if self._ruleset_resolver is None:
+            endpoint_url = self.meta.endpoint_url
+            additional_headers = {}
+        else:
+            endpoint_info = self._ruleset_resolver.construct_endpoint(
+                operation_model=operation_model,
+                call_args=params,
+                request_context=request_context,
+            )
+            endpoint_url = endpoint_info.url
+            additional_headers = endpoint_info.headers
+            # If authSchemes is present, overwrite default auth type and
+            # signing context derived from service model.
+            auth_schemes = endpoint_info.properties.get('authSchemes')
+            if auth_schemes is not None:
+                auth_info = self._ruleset_resolver.auth_schemes_to_signing_ctx(
+                    auth_schemes
+                )
+                auth_type, signing_context = auth_info
+                request_context['auth_type'] = auth_type
+                if 'region' in signing_context and ignore_signing_region:
+                    del signing_context['region']
+                if 'signing' in request_context:
+                    request_context['signing'].update(signing_context)
+                else:
+                    request_context['signing'] = signing_context
+
+        return endpoint_url, additional_headers
 
     def get_paginator(self, operation_name):
         """Create a paginator for an operation.

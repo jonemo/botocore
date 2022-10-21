@@ -1535,22 +1535,15 @@ class S3RegionRedirector2:
             # transport error.
             return
 
-        previous_request_netloc = urlsplit(request_dict.get('url', '')).netloc
-        if (
-            '.s3-accesspoint.' in previous_request_netloc
-            or '.s3-accesspoint-fips.' in previous_request_netloc
-        ):
+        redirect_ctx = request_dict.get('context', {}).get('s3_redirect', {})
+        if ArnParser.is_arn(redirect_ctx.get('bucket')):
             logger.debug(
                 'S3 request was previously for an Accesspoint ARN, not '
                 'redirecting.'
             )
             return
 
-        if (
-            request_dict.get('context', {})
-            .get('s3_redirect', {})
-            .get('redirected')
-        ):
+        if redirect_ctx.get('redirected'):
             logger.debug(
                 'S3 request was previously redirected, not redirecting.'
             )

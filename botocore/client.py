@@ -128,7 +128,7 @@ class ClientCreator:
             endpoints_ruleset_data = self._load_service_endpoints_ruleset(
                 service_name, api_version
             )
-            partition_data = self._loader.load_data('partitions')
+            partition_data = self._load_partitions_data()
         except UnknownServiceError:
             endpoints_ruleset_data = None
             partition_data = None
@@ -235,6 +235,9 @@ class ClientCreator:
         return self._loader.load_service_model(
             service_name, 'endpoint-rule-set-1', api_version=api_version
         )
+
+    def _load_partitions_data(self):
+        return self._loader.load_data('partitions')
 
     def _register_retries(self, client):
         retry_mode = client.meta.config.retries['mode']
